@@ -289,8 +289,35 @@ function buildNotionPageProperties(trade: any, databaseSchema: any): Record<stri
 
   // 11. TradingView URL
   const tvKey = getPropKey(["TradingView URL", "Chart Link", "URL"]);
-  if (tvKey && trade.tradingViewUrl) {
-    properties[tvKey] = { url: trade.tradingViewUrl };
+  const tvUrl = trade.tradingViewUrl || (trade.chartImages && trade.chartImages.find((img: string) => img.startsWith("http")));
+  if (tvKey && tvUrl) {
+    properties[tvKey] = { url: tvUrl };
+  }
+
+  // 12. Chart Screenshot / Files
+  const filesKey = getPropKey(["Chart Screenshot", "Screenshot", "Files"]);
+  if (filesKey && schemaProps[filesKey]?.type === "files") {
+    const validUrls: string[] = [];
+    if (trade.tradingViewUrl && trade.tradingViewUrl.startsWith("http")) {
+      validUrls.push(trade.tradingViewUrl);
+    }
+    if (Array.isArray(trade.chartImages)) {
+      trade.chartImages.forEach((img: string) => {
+        if (img && img.startsWith("http") && !validUrls.includes(img)) {
+          validUrls.push(img);
+        }
+      });
+    }
+
+    if (validUrls.length > 0) {
+      properties[filesKey] = {
+        files: validUrls.map((url, idx) => ({
+          name: `TradingView Chart ${idx + 1}`,
+          type: "external",
+          external: { url },
+        })),
+      };
+    }
   }
 
   return properties;
