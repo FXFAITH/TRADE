@@ -3,18 +3,28 @@ import { Trade, NotionConfig } from '../types';
 const NOTION_CONFIG_KEY = 'sentinel_notion_config_v1';
 const LOCAL_TRADES_BACKUP_KEY = 'sentinel_trades_local_backup_v1';
 
+export const DEFAULT_NOTION_CONFIG: NotionConfig = {
+  apiKey: 'ntn_Q38234662644sLexkBRmI46birmVGxUHESVj8PrVosR0Oi',
+  databaseId: '3bf0e3e57718801182ece24131bad598',
+  databaseTitle: 'Trading Journal',
+  connected: true,
+};
+
 export function getStoredNotionConfig(): NotionConfig {
   try {
     const saved = localStorage.getItem(NOTION_CONFIG_KEY);
     if (saved) {
-      return JSON.parse(saved);
+      const parsed = JSON.parse(saved);
+      return {
+        ...DEFAULT_NOTION_CONFIG,
+        ...parsed,
+        connected: true,
+      };
     }
   } catch (e) {
     console.error('Failed to load Notion config from localStorage', e);
   }
-  return {
-    connected: false,
-  };
+  return DEFAULT_NOTION_CONFIG;
 }
 
 export function saveStoredNotionConfig(config: NotionConfig): void {

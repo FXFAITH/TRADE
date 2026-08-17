@@ -299,6 +299,9 @@ async function startServer() {
 
   app.use(express.json({ limit: "25mb" }));
 
+  const DEFAULT_NOTION_API_KEY = process.env.NOTION_API_KEY || "ntn_Q38234662644sLexkBRmI46birmVGxUHESVj8PrVosR0Oi";
+  const DEFAULT_NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID || "3bf0e3e57718801182ece24131bad598";
+
   // API Health Check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
@@ -311,8 +314,8 @@ async function startServer() {
   // 1. Get Notion Status
   app.get("/api/notion/status", async (req, res) => {
     try {
-      const apiKey = (req.query.apiKey as string) || process.env.NOTION_API_KEY;
-      const databaseId = normalizeNotionId((req.query.databaseId as string) || process.env.NOTION_DATABASE_ID || "");
+      const apiKey = (req.query.apiKey as string) || (req.headers["x-notion-key"] as string) || DEFAULT_NOTION_API_KEY;
+      const databaseId = normalizeNotionId((req.query.databaseId as string) || (req.headers["x-notion-db"] as string) || DEFAULT_NOTION_DATABASE_ID);
 
       if (!apiKey || !databaseId) {
         return res.json({
@@ -380,8 +383,8 @@ async function startServer() {
   // 3. Fetch Trades from Notion Database
   app.get("/api/notion/trades", async (req, res) => {
     try {
-      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY;
-      const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || "");
+      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
+      const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID);
 
       if (!apiKey || !databaseId) {
         return res.status(400).json({
@@ -414,8 +417,8 @@ async function startServer() {
   // 4. Create New Trade in Notion Database
   app.post("/api/notion/trades", async (req, res) => {
     try {
-      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY;
-      const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || "");
+      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
+      const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID);
 
       if (!apiKey || !databaseId) {
         return res.status(400).json({
@@ -447,8 +450,8 @@ async function startServer() {
   // 5. Update Trade in Notion Database
   app.patch("/api/notion/trades/:id", async (req, res) => {
     try {
-      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY;
-      const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || "");
+      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
+      const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID);
       const pageId = req.params.id;
 
       if (!apiKey) {
@@ -485,7 +488,7 @@ async function startServer() {
   // 6. Delete (Archive) Trade in Notion Database
   app.delete("/api/notion/trades/:id", async (req, res) => {
     try {
-      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY;
+      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
       const pageId = req.params.id;
 
       if (!apiKey) {
@@ -510,8 +513,8 @@ async function startServer() {
   // 7. Batch Sync All Trades into Notion
   app.post("/api/notion/sync-all", async (req, res) => {
     try {
-      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY;
-      const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || "");
+      const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
+      const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID);
       const { trades } = req.body;
 
       if (!apiKey || !databaseId) {
