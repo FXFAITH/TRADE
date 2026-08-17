@@ -58,6 +58,7 @@ export default function App() {
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [isNotionModalOpen, setIsNotionModalOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [syncToast, setSyncToast] = useState<{ message: string; type: 'success' | 'error' | 'syncing' } | null>(null);
 
   // Check Notion connection on mount
   useEffect(() => {
@@ -110,6 +111,8 @@ export default function App() {
   const handleSaveTrade = async (tradeData: Partial<Trade>) => {
     if (!user) return;
 
+    setSyncToast({ message: 'Syncing trade to Notion database...', type: 'syncing' });
+
     if (editingTrade) {
       // Update existing
       const updatedTrade = {
@@ -121,6 +124,8 @@ export default function App() {
       setTrades((prev) => prev.map((t) => (t.id === editingTrade.id ? updatedTrade : t)));
       saveLocalTradesBackup(trades.map((t) => (t.id === editingTrade.id ? updatedTrade : t)), user.email);
       await updateNotionTrade(updatedTrade, notionConfig, user.email);
+      setSyncToast({ message: `Updated and synced "${updatedTrade.symbol}" to Notion! ✅`, type: 'success' });
+      setTimeout(() => setSyncToast(null), 4000);
     } else {
       // Insert new
       const newEntry = {
@@ -135,6 +140,8 @@ export default function App() {
       if (createdInNotion && createdInNotion.id !== newEntry.id) {
         setTrades((prev) => prev.map((t) => (t.id === newEntry.id ? createdInNotion : t)));
       }
+      setSyncToast({ message: `Trade "${newEntry.symbol}" successfully saved & synced to Notion! ✅`, type: 'success' });
+      setTimeout(() => setSyncToast(null), 4000);
     }
 
     setEditingTrade(null);
@@ -145,7 +152,10 @@ export default function App() {
     const remaining = trades.filter((t) => t.id !== id);
     setTrades(remaining);
     saveLocalTradesBackup(remaining, user.email);
+    setSyncToast({ message: 'Archiving trade in Notion...', type: 'syncing' });
     await deleteNotionTrade(id, notionConfig, user.email);
+    setSyncToast({ message: 'Trade archived from Notion database. ✅', type: 'success' });
+    setTimeout(() => setSyncToast(null), 3000);
   };
 
   const handleEditTradeClick = (trade: Trade) => {
@@ -279,6 +289,36 @@ export default function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
+        {/* Live Sync Notification Toast */}
+        {syncToast && (
+          <div
+            className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-bold shadow-md transition-all animate-in fade-in slide-in-from-top-2 duration-300 ${
+              syncToast.type === 'success'
+                ? 'bg-emerald-950/80 border-emerald-700 text-emerald-200'
+                : syncToast.type === 'error'
+                ? 'bg-rose-950/80 border-rose-700 text-rose-200'
+                : 'bg-blue-950/80 border-blue-700 text-blue-200'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {syncToast.type === 'syncing' ? (
+                <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" />
+              ) : syncToast.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-rose-400" />
+              )}
+              <span>{syncToast.message}</span>
+            </div>
+            <button
+              onClick={() => setSyncToast(null)}
+              className="text-[11px] opacity-70 hover:opacity-100 px-2 py-0.5 rounded cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Top Summary Metrics */}
         <MetricsOverview stats={summaryStats} initialBalance={accountConfig.initialBalance} />
 
