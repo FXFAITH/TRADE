@@ -795,34 +795,102 @@ Analyze this exact dataset and produce a structured JSON response with the follo
 
 Return ONLY valid raw JSON with no markdown wrapping.`;
 
-      let response;
-      const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-      let lastErr = null;
+      let responseText: string | null = null;
+      let lastError: any = null;
 
-      for (const modelName of candidateModels) {
-        try {
-          response = await ai.models.generateContent({
-            model: modelName,
-            contents: prompt,
-            config: {
-              responseMimeType: "application/json",
-            },
-          });
-          if (response && response.text) {
-            break;
+      // Tier 1: Try SDK with dynamic model list
+      try {
+        const listResult = await ai.models.list();
+        const availableModels: string[] = [];
+        if (Array.isArray(listResult)) {
+          for (const m of listResult) {
+            if (m.name && (m.supportedGenerationMethods?.includes('generateContent') || !m.supportedGenerationMethods)) {
+              availableModels.push(m.name.replace(/^models\//, ''));
+            }
           }
-        } catch (err: any) {
-          lastErr = err;
-          console.warn(`Model ${modelName} failed, trying next candidate...`, err?.message);
+        } else if (listResult && Array.isArray((listResult as any).models)) {
+          for (const m of (listResult as any).models) {
+            if (m.name && (m.supportedGenerationMethods?.includes('generateContent') || !m.supportedGenerationMethods)) {
+              availableModels.push(m.name.replace(/^models\//, ''));
+            }
+          }
+        }
+
+        const preferredModels = availableModels.filter(m => m.includes('flash') || m.includes('gemini'));
+        const modelsToTry = preferredModels.length > 0 ? preferredModels : ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-pro'];
+
+        for (const modelName of modelsToTry) {
+          try {
+            const resp = await ai.models.generateContent({
+              model: modelName,
+              contents: prompt,
+              config: {
+                responseMimeType: "application/json",
+              },
+            });
+            if (resp && resp.text) {
+              responseText = resp.text;
+              break;
+            }
+          } catch (err: any) {
+            lastError = err;
+          }
+        }
+      } catch (err: any) {
+        lastError = err;
+      }
+
+      // Tier 2: Direct REST API Fallback
+      if (!responseText) {
+        const fallbackModels = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash-exp', 'gemini-1.5-pro-latest', 'gemini-pro'];
+        for (const modelName of fallbackModels) {
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`;
+            const restRes = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                  responseMimeType: "application/json"
+                }
+              })
+            });
+
+            if (restRes.ok) {
+              const data: any = await restRes.json();
+              const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) {
+                responseText = text;
+                break;
+              }
+            } else {
+              const errData: any = await restRes.json().catch(() => ({}));
+              lastError = new Error(errData?.error?.message || `HTTP ${restRes.status}: ${restRes.statusText}`);
+            }
+          } catch (err: any) {
+            lastError = err;
+          }
         }
       }
 
-      if (!response || !response.text) {
-        throw lastErr || new Error("Failed to get a response from Gemini model.");
+      if (!responseText) {
+        throw lastError || new Error("Unable to reach any Gemini AI model. Please verify your API key.");
       }
 
-      const responseText = response.text || "{}";
-      const parsed = JSON.parse(responseText);
+      // Clean markdown code blocks if present
+      let cleanJson = responseText.trim();
+      if (cleanJson.startsWith("```json")) {
+        cleanJson = cleanJson.substring(7);
+      } else if (cleanJson.startsWith("```")) {
+        cleanJson = cleanJson.substring(3);
+      }
+      if (cleanJson.endsWith("```")) {
+        cleanJson = cleanJson.substring(0, cleanJson.length - 3);
+      }
+      cleanJson = cleanJson.trim();
+
+      const parsed = JSON.parse(cleanJson);
       return res.json(parsed);
     } catch (error: any) {
       console.error("AI Insights Generation Error:", error);
