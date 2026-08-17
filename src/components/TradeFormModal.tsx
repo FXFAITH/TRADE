@@ -35,22 +35,22 @@ const TIMEFRAME_OPTIONS = [
 ];
 
 const STRATEGIES: StrategyType[] = [
-  'TJL1',
-  'TJL2',
-  'SBR',
-  'RBS',
-  'QML',
-  'LVL 3',
-  'LVL 4',
-  'FIB',
-  'D.C QML',
-  'D.C.QML A+',
   'DEMAND',
   'SUPPLY',
   'T.C QML',
   'T.C. QML A+',
   'DB',
   'DT',
+  'LVL 3',
+  'LVL 4',
+  'FIB',
+  'D.C QML',
+  'D.C.QML A+',
+  'TJL1',
+  'TJL2',
+  'SBR',
+  'RBS',
+  'QML',
 ];
 
 const EMOTIONAL_STATES: { label: EmotionalState; category: 'positive' | 'neutral' | 'negative'; description: string }[] = [
@@ -149,7 +149,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setTpPrice('');
       setRiskPips('20');
       setPositionSize('1.0');
-      setStrategyType('TJL1');
+      setStrategyType('DEMAND');
       setSession('Asian Session');
       setLevelTimeframe('1D');
       setConfirmationTimeframe('15M');
