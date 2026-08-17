@@ -93,8 +93,12 @@ export const TradeLogTable: React.FC<TradeLogTableProps> = ({
     let bVal: any = b[sortField];
 
     if (sortField === 'date') {
-      aVal = new Date(a.date + 'T' + (a.time || '00:00')).getTime();
-      bVal = new Date(b.date + 'T' + (b.time || '00:00')).getTime();
+      const aDateStr = a.date ? (a.time ? `${a.date}T${a.time}` : a.date) : '';
+      const bDateStr = b.date ? (b.time ? `${b.date}T${b.time}` : b.date) : '';
+      aVal = aDateStr ? new Date(aDateStr).getTime() : 0;
+      bVal = bDateStr ? new Date(bDateStr).getTime() : 0;
+      if (isNaN(aVal)) aVal = 0;
+      if (isNaN(bVal)) bVal = 0;
     }
 
     if (aVal === undefined) aVal = 0;
