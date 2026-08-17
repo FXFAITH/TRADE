@@ -413,6 +413,29 @@ async function startServer() {
   // -------------------------------------------------------------
   // NOTION DATABASE INTEGRATION ENDPOINTS
   // -------------------------------------------------------------
+  // HELPER: Direct Native Notion REST API Requester (Zero SDK Bundling issues)
+  // -------------------------------------------------------------
+  async function notionApiRequest(endpoint: string, method: string = "GET", body?: any, customApiKey?: string) {
+    const apiKey = customApiKey || process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
+    const url = `https://api.notion.com/v1${endpoint}`;
+    const options: RequestInit = {
+      method,
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json",
+      },
+    };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Notion API Error (${res.status}): ${errText}`);
+    }
+    return res.json();
+  }
 
   // 1. Get Notion Status
   app.get("/api/notion/status", async (req, res) => {
@@ -429,8 +452,7 @@ async function startServer() {
         });
       }
 
-      const notion = new NotionClient({ auth: apiKey });
-      const database: any = await notion.databases.retrieve({ database_id: databaseId });
+      const database: any = await notionApiRequest(`/databases/${databaseId}`, "GET", undefined, apiKey);
 
       const title = database.title?.[0]?.plain_text || "Notion Trading Journal";
       return res.json({
@@ -463,8 +485,7 @@ async function startServer() {
         return res.status(400).json({ error: "Please provide a valid Notion Database ID or URL." });
       }
 
-      const notion = new NotionClient({ auth: key });
-      const database: any = await notion.databases.retrieve({ database_id: normalizedId });
+      const database: any = await notionApiRequest(`/databases/${normalizedId}`, "GET", undefined, key);
 
       const title = database.title?.[0]?.plain_text || "Notion Trading Journal";
       const propNames = Object.keys(database.properties || {});
@@ -488,7 +509,6 @@ async function startServer() {
     try {
       const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
       const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID);
-      const userEmail = (req.headers["x-user-email"] as string) || (req.query.userEmail as string) || "";
 
       if (!apiKey || !databaseId) {
         return res.status(400).json({
@@ -496,9 +516,7 @@ async function startServer() {
         });
       }
 
-      const notion = new NotionClient({ auth: apiKey });
-      const queryPayload: any = {
-        database_id: databaseId,
+      const queryPayload = {
         sorts: [
           {
             timestamp: "created_time",
@@ -508,9 +526,9 @@ async function startServer() {
         page_size: 100,
       };
 
-      const response: any = await (notion as any).databases.query(queryPayload);
+      const response: any = await notionApiRequest(`/databases/${databaseId}/query`, "POST", queryPayload, apiKey);
 
-      let trades = response.results.map(parseNotionPageToTrade);
+      let trades = (response.results || []).map(parseNotionPageToTrade);
       return res.json({ trades, count: trades.length });
     } catch (error: any) {
       console.error("Fetch Notion Trades Error:", error);
@@ -542,15 +560,13 @@ async function startServer() {
         });
       }
 
-      const notion = new NotionClient({ auth: apiKey });
-      const dbSchema: any = await notion.databases.retrieve({ database_id: databaseId });
-
+      const dbSchema: any = await notionApiRequest(`/databases/${databaseId}`, "GET", undefined, apiKey);
       const properties = buildNotionPageProperties(trade, dbSchema);
 
-      const newPage = await notion.pages.create({
+      const newPage = await notionApiRequest("/pages", "POST", {
         parent: { database_id: databaseId },
         properties,
-      });
+      }, apiKey);
 
       const parsedTrade = parseNotionPageToTrade(newPage);
       return res.json({ success: true, trade: { ...trade, id: newPage.id, ...parsedTrade } });
@@ -574,21 +590,18 @@ async function startServer() {
       }
 
       const trade = req.body;
-      const notion = new NotionClient({ auth: apiKey });
-      
       let dbSchema = null;
       if (databaseId) {
         try {
-          dbSchema = await notion.databases.retrieve({ database_id: databaseId });
+          dbSchema = await notionApiRequest(`/databases/${databaseId}`, "GET", undefined, apiKey);
         } catch (_) {}
       }
 
       const properties = buildNotionPageProperties(trade, dbSchema);
 
-      const updatedPage = await notion.pages.update({
-        page_id: pageId,
+      const updatedPage = await notionApiRequest(`/pages/${pageId}`, "PATCH", {
         properties,
-      });
+      }, apiKey);
 
       const parsedTrade = parseNotionPageToTrade(updatedPage);
       return res.json({ success: true, trade: { ...trade, id: updatedPage.id, ...parsedTrade } });
@@ -610,11 +623,9 @@ async function startServer() {
         return res.status(400).json({ error: "Notion API key required." });
       }
 
-      const notion = new NotionClient({ auth: apiKey });
-      await notion.pages.update({
-        page_id: pageId,
+      await notionApiRequest(`/pages/${pageId}`, "PATCH", {
         archived: true,
-      });
+      }, apiKey);
 
       return res.json({ success: true, id: pageId });
     } catch (error: any) {
@@ -640,8 +651,7 @@ async function startServer() {
         return res.status(400).json({ error: "Invalid trades list." });
       }
 
-      const notion = new NotionClient({ auth: apiKey });
-      const dbSchema: any = await notion.databases.retrieve({ database_id: databaseId });
+      const dbSchema: any = await notionApiRequest(`/databases/${databaseId}`, "GET", undefined, apiKey);
 
       let createdCount = 0;
       for (const trade of trades) {
@@ -656,10 +666,10 @@ async function startServer() {
           }
 
           const properties = buildNotionPageProperties(trade, dbSchema);
-          await notion.pages.create({
+          await notionApiRequest("/pages", "POST", {
             parent: { database_id: databaseId },
             properties,
-          });
+          }, apiKey);
           createdCount++;
         } catch (itemErr) {
           console.error("Failed to sync individual trade:", trade.symbol, itemErr);
