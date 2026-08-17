@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Clock,
   Globe,
+  RefreshCw,
 } from 'lucide-react';
 import { Trade, FilterOptions, StrategyType, EmotionalState } from '../types';
 
