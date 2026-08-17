@@ -326,6 +326,8 @@ export default function App() {
         {activeTab === 'trades' ? (
           <TradeLogTable
             trades={trades}
+            isLoading={isLoadingTrades}
+            onRefresh={loadTrades}
             onEditTrade={handleEditTradeClick}
             onDeleteTrade={handleDeleteTrade}
             onOpenNewTrade={() => {

@@ -22,6 +22,8 @@ import { Trade, FilterOptions, StrategyType, EmotionalState } from '../types';
 
 interface TradeLogTableProps {
   trades: Trade[];
+  isLoading?: boolean;
+  onRefresh?: () => void;
   onEditTrade: (trade: Trade) => void;
   onDeleteTrade: (id: string) => void;
   onOpenNewTrade: () => void;
@@ -30,6 +32,8 @@ interface TradeLogTableProps {
 
 export const TradeLogTable: React.FC<TradeLogTableProps> = ({
   trades,
+  isLoading,
+  onRefresh,
   onEditTrade,
   onDeleteTrade,
   onOpenNewTrade,
@@ -309,18 +313,40 @@ export const TradeLogTable: React.FC<TradeLogTableProps> = ({
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         
         {sortedTrades.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 space-y-3">
-            <Filter className="w-8 h-8 text-slate-300 mx-auto" />
-            <div className="text-sm font-bold text-slate-700">No trade entries match your filter</div>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Try adjusting your search criteria or log a new trade entry with price levels and chart screenshots.
-            </p>
-            <button
-              onClick={onOpenNewTrade}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm"
-            >
-              <Plus className="w-4 h-4" /> Log New Trade
-            </button>
+          <div className="p-12 text-center text-slate-500 space-y-4">
+            {isLoading ? (
+              <div className="space-y-3">
+                <RefreshCw className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
+                <div className="text-sm font-bold text-slate-800">Fetching your journal from Notion cloud...</div>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Retrieving all price levels, setups, and psychology metrics from your Notion database.
+                </p>
+              </div>
+            ) : (
+              <>
+                <Filter className="w-8 h-8 text-slate-300 mx-auto" />
+                <div className="text-sm font-bold text-slate-700">No trade entries displayed</div>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Click refresh below to fetch all your cloud trades from Notion, or log a fresh trade entry.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                  {onRefresh && (
+                    <button
+                      onClick={onRefresh}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm cursor-pointer transition-colors"
+                    >
+                      <RefreshCw className="w-4 h-4" /> Refresh from Notion Cloud
+                    </button>
+                  )}
+                  <button
+                    onClick={onOpenNewTrade}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm cursor-pointer transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Log New Trade
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
