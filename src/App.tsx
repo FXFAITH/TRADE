@@ -362,7 +362,7 @@ export default function App() {
       <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500 mt-auto">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="font-semibold text-slate-600">
-            SENTINEL TradeJournal <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-200">NOTION</span> &copy; {new Date().getFullYear()} &bull; Professional Trading Psychology &amp; Strategy Analytics
+            WE TRADE Journal <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-bold border border-blue-200">NOTION</span> &copy; {new Date().getFullYear()} &bull; Professional Trading Psychology &amp; Strategy Analytics
           </div>
           <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
             <span>Direct Notion API</span>

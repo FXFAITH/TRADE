@@ -666,6 +666,25 @@ async function startServer() {
           }
 
           const properties = buildNotionPageProperties(trade, dbSchema);
+
+          // Check if this trade already has a Notion page ID
+          const cleanId = trade.id ? String(trade.id).replace(/-/g, "") : "";
+          const isExistingNotionPage = cleanId.length === 32 && /^[0-9a-fA-F]{32}$/.test(cleanId);
+
+          if (isExistingNotionPage) {
+            try {
+              // Update existing page in Notion (No duplication)
+              await notionApiRequest(`/pages/${trade.id}`, "PATCH", {
+                properties,
+              }, apiKey);
+              createdCount++;
+              continue;
+            } catch (_) {
+              // If page was deleted or moved, fallback to creating new page
+            }
+          }
+
+          // Otherwise create a fresh page
           await notionApiRequest("/pages", "POST", {
             parent: { database_id: databaseId },
             properties,

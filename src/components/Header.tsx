@@ -73,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
               <div>
                 <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                  SENTINEL <span className="text-[10px] px-2 py-0.5 rounded bg-blue-600/30 text-blue-400 border border-blue-500/30 font-semibold tracking-wider">JOURNAL</span>
+                  WE TRADE <span className="text-[10px] px-2 py-0.5 rounded bg-blue-600/30 text-blue-400 border border-blue-500/30 font-semibold tracking-wider">JOURNAL</span>
                 </h1>
                 <p className="text-[11px] text-slate-400">Risk-to-Reward &amp; Emotional Analytics Matrix</p>
               </div>
