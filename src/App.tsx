@@ -24,7 +24,8 @@ import {
   syncAllNotionTrades,
   saveLocalTradesBackup,
 } from './lib/notion';
-import { ShieldCheck, Database, RefreshCw, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { ShieldCheck, Database, RefreshCw, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 
 const LOCAL_STORAGE_CONFIG_KEY = 'trade_journal_pro_config_v1';
 
