@@ -213,8 +213,8 @@ export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
           <h1 className="text-2xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
             WE TRADE <span className="text-xs px-2.5 py-0.5 rounded bg-blue-600/30 text-blue-400 border border-blue-500/30 font-semibold tracking-wider">JOURNAL</span>
           </h1>
-          <p className="text-xs text-slate-400 max-w-xs mx-auto">
-            Quantitative Trading Log &amp; Performance Matrix backed by your personal database
+          <p className="text-xs text-blue-300 font-semibold tracking-wider uppercase max-w-xs mx-auto">
+            WILL SEE MYSELF ON TOP
           </p>
         </div>
 
