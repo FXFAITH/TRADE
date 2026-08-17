@@ -121,7 +121,11 @@ function parseNotionPageToTrade(page: any): any {
     return urls;
   };
 
-  const symbol = getTitle(["symbol", "pair", "instrument", "name", "title"]) || "EUR/USD";
+  const rawTitle = getTitle(["symbol", "pair", "instrument", "name", "title"]) || "EUR/USD";
+  let symbol = rawTitle;
+  if (symbol.includes(" - ")) {
+    symbol = symbol.split(" - ")[0].trim();
+  }
   const direction = (getSelect(["direction", "side", "type"]).toUpperCase().includes("SHORT") ? "SHORT" : "LONG");
   const rawStatus = getSelect(["status", "outcome", "result"]).toUpperCase();
   const status = rawStatus.includes("WIN")
