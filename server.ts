@@ -132,25 +132,48 @@ function parseNotionPageToTrade(page: any): any {
     ? "BREAKEVEN"
     : "OPEN";
 
-  const strategy = (getSelect(["strategy", "setup"]) || "DEMAND") as any;
+  const strategy = (getSelect(["strategy setup", "strategy", "setup"]) || "DEMAND") as any;
   const session = (getSelect(["session"]) || "New York Session") as any;
-  const emotion = (getSelect(["emotion", "psychology", "mental"]) || "Disciplined") as any;
+  const levelTimeframe = (getSelect(["level timeframe", "higher timeframe"]) || "1D") as any;
+  const confirmationTimeframe = (getSelect(["confirmation timeframe", "entry timeframe"]) || "15M") as any;
+  const emotion = (getSelect(["emotional state", "emotion", "psychology", "mental"]) || "Disciplined") as any;
   
   const entryPrice = getNumber(["entry price", "entry"], 0);
   const exitPrice = getNumber(["exit price", "exit"], undefined as any);
   const slPrice = getNumber(["stop loss", "sl"], 0);
   const tpPrice = getNumber(["take profit", "tp"], 0);
-  const riskPips = getNumber(["risk pips", "risk"], 15);
-  const positionSize = getNumber(["position size", "lot", "lots", "size"], 1.0);
-  const calculatedRiskReward = getNumber(["calculated risk reward", "risk reward", "r:r", "rr"], 2.0);
-  const actualRiskReward = getNumber(["actual risk reward", "actual rr"], undefined as any);
-  const pnlAmount = getNumber(["pnl", "p&l", "net pnl", "profit", "amount"], undefined as any);
-  const pnlPips = getNumber(["pnl pips", "pips"], undefined as any);
-  const date = getDate(["date", "trade date", "created"]);
-  const notes = getText(["notes", "review", "journal notes", "comment"]);
-  const tradingViewUrl = getText(["tradingview", "chart link", "tv url"]);
-  const chartImages = getUrlOrFiles(["screenshot", "chart image", "images", "attachment"]);
+  const riskPips = getNumber(["risk (pips)", "risk pips", "risk"], 15);
+  const positionSize = getNumber(["lot size", "position size", "lot", "lots", "size"], 1.0);
+  const calculatedRiskReward = getNumber(["risk:reward", "calculated risk reward", "risk reward", "r:r", "rr"], 2.0);
+  const actualRiskReward = getNumber(["realized r:r", "actual risk reward", "actual rr"], undefined as any);
+  const pnlAmount = getNumber(["pnl ($)", "pnl", "p&l", "net pnl", "profit", "amount"], undefined as any);
+  const pnlPips = getNumber(["pnl (pips)", "pnl pips", "pips"], undefined as any);
+  const rating = getNumber(["execution rating", "rating"], 5);
+  const date = getDate(["trade date", "date", "created"]);
+  const time = getText(["trade time", "time"]);
+  const notes = getText(["journal notes", "notes", "review", "comment"]);
+  const partialExitNote = getText(["partial exit note", "partial note"]);
+  const tradingViewUrl = getText(["tradingview url", "tradingview", "chart link", "tv url"]);
+  const chartImages = getUrlOrFiles(["chart screenshot", "screenshot", "chart image", "images", "attachment"]);
   const userId = getText(["trader email", "user email", "user id", "user", "email"]);
+
+  // Checkbox property for isRiskFree
+  let isRiskFree = false;
+  for (const key of Object.keys(props)) {
+    if (key.toLowerCase().includes("risk free") || key.toLowerCase().includes("breakeven")) {
+      if (props[key].type === "checkbox") {
+        isRiskFree = Boolean(props[key].checkbox);
+      }
+    }
+  }
+
+  // Multi-select for tags
+  let tags: string[] = [];
+  for (const key of Object.keys(props)) {
+    if (key.toLowerCase() === "tags" && props[key].type === "multi_select" && Array.isArray(props[key].multi_select)) {
+      tags = props[key].multi_select.map((m: any) => m.name);
+    }
+  }
 
   return {
     id: page.id,
@@ -160,6 +183,8 @@ function parseNotionPageToTrade(page: any): any {
     status,
     strategyType: strategy,
     session,
+    levelTimeframe,
+    confirmationTimeframe,
     emotionalState: emotion,
     entryPrice,
     exitPrice: exitPrice || undefined,
@@ -171,12 +196,15 @@ function parseNotionPageToTrade(page: any): any {
     actualRiskReward: actualRiskReward || undefined,
     pnlAmount: pnlAmount !== undefined ? pnlAmount : undefined,
     pnlPips: pnlPips !== undefined ? pnlPips : undefined,
+    isRiskFree,
+    partialExitNote: partialExitNote || undefined,
     date,
+    time: time || undefined,
     notes,
     tradingViewUrl: tradingViewUrl || undefined,
     chartImages,
-    tags: [],
-    rating: 5,
+    tags,
+    rating,
   };
 }
 
@@ -244,27 +272,43 @@ function buildNotionPageProperties(trade: any, databaseSchema: any): Record<stri
   }
 
   // 6. Session
-  const sessionKey = getPropKey(["Session"]);
+  const sessionKey = getPropKey(["Session", "Trading Session"]);
   if (sessionKey && trade.session) {
     properties[sessionKey] = { select: { name: trade.session } };
   }
 
-  // 7. Emotional State
+  // 7. Timeframes
+  const levelTfKey = getPropKey(["Level Timeframe"]);
+  if (levelTfKey && trade.levelTimeframe) {
+    properties[levelTfKey] = { select: { name: trade.levelTimeframe } };
+  }
+
+  const confTfKey = getPropKey(["Confirmation Timeframe"]);
+  if (confTfKey && trade.confirmationTimeframe) {
+    properties[confTfKey] = { select: { name: trade.confirmationTimeframe } };
+  }
+
+  // 8. Emotional State
   const emotionKey = getPropKey(["Emotional State", "Emotion", "Psychology"]);
   if (emotionKey && trade.emotionalState) {
     properties[emotionKey] = { select: { name: trade.emotionalState } };
   }
 
-  // 8. Trade Date
+  // 9. Trade Date & Time
   const dateKey = getPropKey(["Trade Date", "Date"]);
   const dateVal = trade.date || new Date().toISOString().split("T")[0];
   if (dateKey && dateVal) {
     properties[dateKey] = { date: { start: dateVal } };
   }
 
-  // 9. Numbers
+  const timeKey = getPropKey(["Trade Time", "Time"]);
+  if (timeKey && trade.time) {
+    properties[timeKey] = { rich_text: [{ text: { content: trade.time } }] };
+  }
+
+  // 10. Numbers
   const setNum = (names: string[], val?: number) => {
-    if (val === undefined || isNaN(val)) return;
+    if (val === undefined || val === null || isNaN(Number(val))) return;
     const k = getPropKey(names);
     if (k && schemaProps[k]?.type === "number") {
       properties[k] = { number: Number(val) };
@@ -276,11 +320,20 @@ function buildNotionPageProperties(trade: any, databaseSchema: any): Record<stri
   setNum(["Stop Loss", "SL"], trade.slPrice);
   setNum(["Take Profit", "TP"], trade.tpPrice);
   setNum(["PnL ($)", "PnL", "Profit"], trade.pnlAmount);
-  setNum(["Risk:Reward", "Risk Reward", "Calculated Risk Reward", "R:R"], trade.calculatedRiskReward || trade.actualRiskReward);
+  setNum(["PnL (Pips)", "PnL Pips"], trade.pnlPips);
+  setNum(["Risk:Reward", "Calculated Risk Reward", "Risk Reward", "R:R"], trade.calculatedRiskReward);
+  setNum(["Realized R:R", "Actual Risk Reward", "Actual RR"], trade.actualRiskReward);
   setNum(["Risk (Pips)", "Risk Pips"], trade.riskPips);
   setNum(["Lot Size", "Position Size"], trade.positionSize);
+  setNum(["Execution Rating", "Rating"], trade.rating);
 
-  // 10. Notes
+  // 11. Risk-Free / Breakeven Checkbox
+  const rfKey = getPropKey(["Risk Free / Breakeven", "Risk Free", "Breakeven"]);
+  if (rfKey && schemaProps[rfKey]?.type === "checkbox") {
+    properties[rfKey] = { checkbox: Boolean(trade.isRiskFree) };
+  }
+
+  // 12. Notes & Partial Exit Note
   const notesKey = getPropKey(["Journal Notes", "Notes", "Review"]);
   if (notesKey && trade.notes) {
     properties[notesKey] = {
@@ -288,14 +341,29 @@ function buildNotionPageProperties(trade: any, databaseSchema: any): Record<stri
     };
   }
 
-  // 11. TradingView URL
+  const partialKey = getPropKey(["Partial Exit Note", "Partial Note"]);
+  if (partialKey && trade.partialExitNote) {
+    properties[partialKey] = {
+      rich_text: [{ text: { content: trade.partialExitNote.slice(0, 1999) } }],
+    };
+  }
+
+  // 13. Tags Multi-Select
+  const tagsKey = getPropKey(["Tags"]);
+  if (tagsKey && schemaProps[tagsKey]?.type === "multi_select" && Array.isArray(trade.tags) && trade.tags.length > 0) {
+    properties[tagsKey] = {
+      multi_select: trade.tags.map((t: string) => ({ name: t.trim() })).filter((t: any) => t.name.length > 0),
+    };
+  }
+
+  // 14. TradingView URL
   const tvKey = getPropKey(["TradingView URL", "Chart Link", "URL"]);
   const tvUrl = trade.tradingViewUrl || (trade.chartImages && trade.chartImages.find((img: string) => img.startsWith("http")));
   if (tvKey && tvUrl) {
     properties[tvKey] = { url: tvUrl };
   }
 
-  // 12. Chart Screenshot / Files
+  // 15. Chart Screenshot / Files
   const filesKey = getPropKey(["Chart Screenshot", "Screenshot", "Files"]);
   if (filesKey && schemaProps[filesKey]?.type === "files") {
     const validUrls: string[] = [];
