@@ -13,6 +13,7 @@ import {
   Database,
   CheckCircle2,
   AlertCircle,
+  Brain,
 } from 'lucide-react';
 import { AccountConfig, AuthUser, NotionConfig } from '../types';
 
