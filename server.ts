@@ -149,9 +149,11 @@ function parseNotionPageToTrade(page: any): any {
   const notes = getText(["notes", "review", "journal notes", "comment"]);
   const tradingViewUrl = getText(["tradingview", "chart link", "tv url"]);
   const chartImages = getUrlOrFiles(["screenshot", "chart image", "images", "attachment"]);
+  const userId = getText(["trader email", "user email", "user id", "user", "email"]);
 
   return {
     id: page.id,
+    userId: userId || undefined,
     symbol,
     direction,
     status,
@@ -199,6 +201,14 @@ function buildNotionPageProperties(trade: any, databaseSchema: any): Record<stri
   if (titleProp) {
     properties[titleProp[0]] = {
       title: [{ text: { content: trade.symbol || "Trade Entry" } }],
+    };
+  }
+
+  // 1b. Trader Email / User ID (Multi-user Isolation)
+  const emailProp = findProp(["trader email", "user email", "email", "user id"], "rich_text");
+  if (emailProp && (trade.userId || trade.userEmail)) {
+    properties[emailProp.key] = {
+      rich_text: [{ text: { content: trade.userId || trade.userEmail } }],
     };
   }
 
@@ -385,6 +395,7 @@ async function startServer() {
     try {
       const apiKey = (req.headers["x-notion-key"] as string) || process.env.NOTION_API_KEY || DEFAULT_NOTION_API_KEY;
       const databaseId = normalizeNotionId((req.headers["x-notion-db"] as string) || process.env.NOTION_DATABASE_ID || DEFAULT_NOTION_DATABASE_ID);
+      const userEmail = (req.headers["x-user-email"] as string) || (req.query.userEmail as string) || "";
 
       if (!apiKey || !databaseId) {
         return res.status(400).json({
@@ -393,7 +404,7 @@ async function startServer() {
       }
 
       const notion = new NotionClient({ auth: apiKey });
-      const response: any = await (notion as any).databases.query({
+      const queryPayload: any = {
         database_id: databaseId,
         sorts: [
           {
@@ -402,9 +413,30 @@ async function startServer() {
           },
         ],
         page_size: 100,
-      });
+      };
 
-      const trades = response.results.map(parseNotionPageToTrade);
+      if (userEmail) {
+        queryPayload.filter = {
+          or: [
+            {
+              property: "Trader Email",
+              rich_text: {
+                equals: userEmail,
+              },
+            },
+            {
+              property: "User ID",
+              rich_text: {
+                equals: userEmail,
+              },
+            }
+          ]
+        };
+      }
+
+      const response: any = await (notion as any).databases.query(queryPayload);
+
+      let trades = response.results.map(parseNotionPageToTrade);
       return res.json({ trades, count: trades.length });
     } catch (error: any) {
       console.error("Fetch Notion Trades Error:", error);

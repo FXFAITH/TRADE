@@ -75,25 +75,18 @@ export default function App() {
 
   // Load trades from Notion or local storage
   const loadTrades = useCallback(async () => {
+    if (!user) return;
     setIsLoadingTrades(true);
     try {
-      const result = await fetchNotionTrades(notionConfig);
-      if (result.trades && result.trades.length > 0) {
-        setTrades(result.trades);
-        setIsNotionSource(result.isNotion);
-      } else {
-        // If empty, populate with sample trades for first-time onboarding
-        const initial = SAMPLE_TRADES.map((t) => ({ ...t, userId: user?.id || 'demo' }));
-        setTrades(initial);
-        saveLocalTradesBackup(initial);
-        setIsNotionSource(false);
-      }
+      const result = await fetchNotionTrades(notionConfig, user.email);
+      setTrades(result.trades || []);
+      setIsNotionSource(result.isNotion);
     } catch (err) {
       console.error('Failed to load trades:', err);
     } finally {
       setIsLoadingTrades(false);
     }
-  }, [notionConfig, user?.id]);
+  }, [notionConfig, user?.email]);
 
   useEffect(() => {
     if (user) {
@@ -115,28 +108,30 @@ export default function App() {
 
   // Handlers
   const handleSaveTrade = async (tradeData: Partial<Trade>) => {
+    if (!user) return;
+
     if (editingTrade) {
       // Update existing
       const updatedTrade = {
         ...editingTrade,
         ...tradeData,
-        userId: user?.id || 'demo',
+        userId: user.email,
       } as Trade;
 
       setTrades((prev) => prev.map((t) => (t.id === editingTrade.id ? updatedTrade : t)));
-      saveLocalTradesBackup(trades.map((t) => (t.id === editingTrade.id ? updatedTrade : t)));
-      await updateNotionTrade(updatedTrade, notionConfig);
+      saveLocalTradesBackup(trades.map((t) => (t.id === editingTrade.id ? updatedTrade : t)), user.email);
+      await updateNotionTrade(updatedTrade, notionConfig, user.email);
     } else {
       // Insert new
       const newEntry = {
         ...tradeData,
         id: tradeData.id || `trd-${Date.now()}`,
-        userId: user?.id || 'demo',
+        userId: user.email,
       } as Trade;
 
       setTrades((prev) => [newEntry, ...prev]);
-      saveLocalTradesBackup([newEntry, ...trades]);
-      const createdInNotion = await insertNotionTrade(newEntry, notionConfig);
+      saveLocalTradesBackup([newEntry, ...trades], user.email);
+      const createdInNotion = await insertNotionTrade(newEntry, notionConfig, user.email);
       if (createdInNotion && createdInNotion.id !== newEntry.id) {
         setTrades((prev) => prev.map((t) => (t.id === newEntry.id ? createdInNotion : t)));
       }
@@ -146,9 +141,11 @@ export default function App() {
   };
 
   const handleDeleteTrade = async (id: string) => {
-    setTrades((prev) => prev.filter((t) => t.id !== id));
-    saveLocalTradesBackup(trades.filter((t) => t.id !== id));
-    await deleteNotionTrade(id, notionConfig);
+    if (!user) return;
+    const remaining = trades.filter((t) => t.id !== id);
+    setTrades(remaining);
+    saveLocalTradesBackup(remaining, user.email);
+    await deleteNotionTrade(id, notionConfig, user.email);
   };
 
   const handleEditTradeClick = (trade: Trade) => {
@@ -157,9 +154,10 @@ export default function App() {
   };
 
   const handleResetSampleData = async () => {
-    const freshSample = SAMPLE_TRADES.map((t) => ({ ...t, userId: user?.id || 'demo' }));
+    if (!user) return;
+    const freshSample = SAMPLE_TRADES.map((t) => ({ ...t, userId: user.email }));
     setTrades(freshSample);
-    saveLocalTradesBackup(freshSample);
+    saveLocalTradesBackup(freshSample, user.email);
     setAccountConfig({
       initialBalance: 10000,
       riskPerTradePercent: 1.0,
@@ -167,17 +165,18 @@ export default function App() {
     });
 
     if (notionConfig.connected) {
-      await syncAllNotionTrades(freshSample, notionConfig);
+      await syncAllNotionTrades(freshSample, notionConfig, user.email);
     }
   };
 
   const handleImportTrades = async (newTrades: Trade[]) => {
-    const withUserId = newTrades.map((t) => ({ ...t, userId: user?.id || 'demo' }));
+    if (!user) return;
+    const withUserId = newTrades.map((t) => ({ ...t, userId: user.email }));
     setTrades(withUserId);
-    saveLocalTradesBackup(withUserId);
+    saveLocalTradesBackup(withUserId, user.email);
 
     if (notionConfig.connected) {
-      await syncAllNotionTrades(withUserId, notionConfig);
+      await syncAllNotionTrades(withUserId, notionConfig, user.email);
     }
   };
 

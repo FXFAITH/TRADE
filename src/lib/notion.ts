@@ -1,7 +1,7 @@
 import { Trade, NotionConfig } from '../types';
 
 const NOTION_CONFIG_KEY = 'sentinel_notion_config_v1';
-const LOCAL_TRADES_BACKUP_KEY = 'sentinel_trades_local_backup_v1';
+const getLocalTradesBackupKey = (email?: string) => `sentinel_trades_backup_${email || 'global'}_v1`;
 
 export const DEFAULT_NOTION_CONFIG: NotionConfig = {
   apiKey: 'ntn_Q38234662644sLexkBRmI46birmVGxUHESVj8PrVosR0Oi',
@@ -35,9 +35,10 @@ export function saveStoredNotionConfig(config: NotionConfig): void {
   }
 }
 
-export function getLocalTradesBackup(): Trade[] {
+export function getLocalTradesBackup(email?: string): Trade[] {
   try {
-    const saved = localStorage.getItem(LOCAL_TRADES_BACKUP_KEY);
+    const key = getLocalTradesBackupKey(email);
+    const saved = localStorage.getItem(key);
     if (saved) {
       return JSON.parse(saved);
     }
@@ -47,9 +48,10 @@ export function getLocalTradesBackup(): Trade[] {
   return [];
 }
 
-export function saveLocalTradesBackup(trades: Trade[]): void {
+export function saveLocalTradesBackup(trades: Trade[], email?: string): void {
   try {
-    localStorage.setItem(LOCAL_TRADES_BACKUP_KEY, JSON.stringify(trades));
+    const key = getLocalTradesBackupKey(email);
+    localStorage.setItem(key, JSON.stringify(trades));
   } catch (e) {
     console.error('Failed to save local trades backup', e);
   }
@@ -103,20 +105,22 @@ export async function testNotionConnection(apiKey: string, databaseId: string): 
   }
 }
 
-// Fetch trades from Notion
-export async function fetchNotionTrades(config?: NotionConfig): Promise<{ trades: Trade[]; isNotion: boolean }> {
+// Fetch trades from Notion with User Email Isolation
+export async function fetchNotionTrades(config?: NotionConfig, userEmail?: string): Promise<{ trades: Trade[]; isNotion: boolean }> {
   const activeConfig = config || getStoredNotionConfig();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   
   if (activeConfig.apiKey) headers['x-notion-key'] = activeConfig.apiKey;
   if (activeConfig.databaseId) headers['x-notion-db'] = activeConfig.databaseId;
+  if (userEmail) headers['x-user-email'] = userEmail;
 
   try {
-    const res = await fetch('/api/notion/trades', { headers });
+    const query = userEmail ? `?userEmail=${encodeURIComponent(userEmail)}` : '';
+    const res = await fetch(`/api/notion/trades${query}`, { headers });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data.trades)) {
-        saveLocalTradesBackup(data.trades);
+        saveLocalTradesBackup(data.trades, userEmail);
         return { trades: data.trades, isNotion: true };
       }
     }
@@ -124,24 +128,25 @@ export async function fetchNotionTrades(config?: NotionConfig): Promise<{ trades
     console.warn('Could not fetch from Notion, falling back to local storage:', err);
   }
 
-  // Fallback to local storage
-  const local = getLocalTradesBackup();
+  // Fallback to local storage for this specific user email
+  const local = getLocalTradesBackup(userEmail);
   return { trades: local, isNotion: false };
 }
 
 // Insert new trade
-export async function insertNotionTrade(trade: Trade, config?: NotionConfig): Promise<Trade> {
+export async function insertNotionTrade(trade: Trade, config?: NotionConfig, userEmail?: string): Promise<Trade> {
   const activeConfig = config || getStoredNotionConfig();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   
   if (activeConfig.apiKey) headers['x-notion-key'] = activeConfig.apiKey;
   if (activeConfig.databaseId) headers['x-notion-db'] = activeConfig.databaseId;
+  if (userEmail) headers['x-user-email'] = userEmail;
 
   try {
     const res = await fetch('/api/notion/trades', {
       method: 'POST',
       headers,
-      body: JSON.stringify(trade),
+      body: JSON.stringify({ ...trade, userId: trade.userId || userEmail }),
     });
 
     if (res.ok) {
@@ -158,18 +163,19 @@ export async function insertNotionTrade(trade: Trade, config?: NotionConfig): Pr
 }
 
 // Update trade
-export async function updateNotionTrade(trade: Trade, config?: NotionConfig): Promise<Trade> {
+export async function updateNotionTrade(trade: Trade, config?: NotionConfig, userEmail?: string): Promise<Trade> {
   const activeConfig = config || getStoredNotionConfig();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   
   if (activeConfig.apiKey) headers['x-notion-key'] = activeConfig.apiKey;
   if (activeConfig.databaseId) headers['x-notion-db'] = activeConfig.databaseId;
+  if (userEmail) headers['x-user-email'] = userEmail;
 
   try {
     const res = await fetch(`/api/notion/trades/${encodeURIComponent(trade.id)}`, {
       method: 'PATCH',
       headers,
-      body: JSON.stringify(trade),
+      body: JSON.stringify({ ...trade, userId: trade.userId || userEmail }),
     });
 
     if (res.ok) {
@@ -186,12 +192,13 @@ export async function updateNotionTrade(trade: Trade, config?: NotionConfig): Pr
 }
 
 // Delete (archive) trade
-export async function deleteNotionTrade(tradeId: string, config?: NotionConfig): Promise<boolean> {
+export async function deleteNotionTrade(tradeId: string, config?: NotionConfig, userEmail?: string): Promise<boolean> {
   const activeConfig = config || getStoredNotionConfig();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   
   if (activeConfig.apiKey) headers['x-notion-key'] = activeConfig.apiKey;
   if (activeConfig.databaseId) headers['x-notion-db'] = activeConfig.databaseId;
+  if (userEmail) headers['x-user-email'] = userEmail;
 
   try {
     const res = await fetch(`/api/notion/trades/${encodeURIComponent(tradeId)}`, {
@@ -207,18 +214,20 @@ export async function deleteNotionTrade(tradeId: string, config?: NotionConfig):
 }
 
 // Sync all trades in batch to Notion
-export async function syncAllNotionTrades(trades: Trade[], config?: NotionConfig): Promise<{ success: boolean; syncedCount?: number; error?: string }> {
+export async function syncAllNotionTrades(trades: Trade[], config?: NotionConfig, userEmail?: string): Promise<{ success: boolean; syncedCount?: number; error?: string }> {
   const activeConfig = config || getStoredNotionConfig();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   
   if (activeConfig.apiKey) headers['x-notion-key'] = activeConfig.apiKey;
   if (activeConfig.databaseId) headers['x-notion-db'] = activeConfig.databaseId;
+  if (userEmail) headers['x-user-email'] = userEmail;
 
   try {
+    const preparedTrades = trades.map(t => ({ ...t, userId: t.userId || userEmail }));
     const res = await fetch('/api/notion/sync-all', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ trades }),
+      body: JSON.stringify({ trades: preparedTrades }),
     });
 
     const data = await res.json();
