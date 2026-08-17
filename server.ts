@@ -231,7 +231,7 @@ function buildNotionPageProperties(trade: any, databaseSchema?: any): Record<str
   const emailVal = trade.userId || trade.userEmail;
   if (emailVal && propExists("Trader Email")) {
     properties["Trader Email"] = {
-      rich_text: [{ text: { content: String(emailVal) } }],
+      rich_text: [{ text: { content: String(emailVal).trim().toLowerCase() } }],
     };
   }
 
@@ -505,18 +505,19 @@ async function startServer() {
       };
 
       if (userEmail) {
+        const clean = userEmail.trim().toLowerCase();
         queryPayload.filter = {
           or: [
             {
               property: "Trader Email",
               rich_text: {
-                equals: userEmail,
+                contains: clean,
               },
             },
             {
               property: "User ID",
               rich_text: {
-                equals: userEmail,
+                contains: clean,
               },
             }
           ]
