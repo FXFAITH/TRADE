@@ -91,9 +91,24 @@ export default function App() {
   }, [notionConfig, user?.email]);
 
   useEffect(() => {
-    if (user) {
+    if (!user) return;
+    loadTrades();
+
+    // Auto-sync when window gains focus
+    const handleFocus = () => {
       loadTrades();
-    }
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Auto-sync every 20 seconds in background
+    const interval = setInterval(() => {
+      loadTrades();
+    }, 20000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
   }, [user, loadTrades]);
 
   // Save accountConfig to localStorage

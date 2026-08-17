@@ -508,32 +508,6 @@ async function startServer() {
         page_size: 100,
       };
 
-      if (userEmail) {
-        const clean = userEmail.trim().toLowerCase();
-        queryPayload.filter = {
-          or: [
-            {
-              property: "Trader Email",
-              rich_text: {
-                contains: clean,
-              },
-            },
-            {
-              property: "User ID",
-              rich_text: {
-                contains: clean,
-              },
-            },
-            {
-              property: "Trader Email",
-              rich_text: {
-                is_empty: true,
-              },
-            }
-          ]
-        };
-      }
-
       const response: any = await (notion as any).databases.query(queryPayload);
 
       let trades = response.results.map(parseNotionPageToTrade);
