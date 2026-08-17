@@ -8,9 +8,11 @@ interface MetricsOverviewProps {
 }
 
 export const MetricsOverview: React.FC<MetricsOverviewProps> = ({ stats, initialBalance }) => {
-  const isPositivePnL = stats.netPnL >= 0;
-  const currentEquity = initialBalance + stats.netPnL;
-  const returnPercentage = Number(((stats.netPnL / initialBalance) * 100).toFixed(2));
+  const safeNetPnL = stats?.netPnL || 0;
+  const safeInitBalance = initialBalance || 10000;
+  const isPositivePnL = safeNetPnL >= 0;
+  const currentEquity = safeInitBalance + safeNetPnL;
+  const returnPercentage = Number(((safeNetPnL / safeInitBalance) * 100).toFixed(2));
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -26,7 +28,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({ stats, initial
           )}
         </div>
         <div className={`text-lg sm:text-xl font-bold tracking-tight font-mono ${isPositivePnL ? 'text-emerald-600' : 'text-rose-500'}`}>
-          {isPositivePnL ? '+' : ''}${stats.netPnL.toLocaleString()}
+          {isPositivePnL ? '+' : ''}${safeNetPnL.toLocaleString()}
         </div>
         <div className="flex items-center justify-between text-[11px] mt-2 pt-2 border-t border-slate-100">
           <span className="text-slate-500 font-medium">${currentEquity.toLocaleString()}</span>

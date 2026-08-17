@@ -66,17 +66,20 @@ export const TradeLogTable: React.FC<TradeLogTableProps> = ({
     }
   };
 
+  const safeTrades = Array.isArray(trades) ? trades : [];
+
   // Filter logic
-  const filteredTrades = trades.filter((trade) => {
+  const filteredTrades = safeTrades.filter((trade) => {
+    if (!trade) return false;
     if (filters.searchQuery) {
       const q = filters.searchQuery.toLowerCase();
-      const matchSymbol = trade.symbol.toLowerCase().includes(q);
-      const matchNotes = trade.notes?.toLowerCase().includes(q) || false;
-      const matchTags = trade.tags?.some((t) => t.toLowerCase().includes(q)) || false;
+      const matchSymbol = (trade.symbol || '').toLowerCase().includes(q);
+      const matchNotes = (trade.notes || '').toLowerCase().includes(q);
+      const matchTags = Array.isArray(trade.tags) && trade.tags.some((t) => (t || '').toLowerCase().includes(q));
       if (!matchSymbol && !matchNotes && !matchTags) return false;
     }
 
-    if (filters.symbol && trade.symbol.toLowerCase() !== filters.symbol.toLowerCase()) return false;
+    if (filters.symbol && (trade.symbol || '').toLowerCase() !== filters.symbol.toLowerCase()) return false;
     if (filters.strategy && trade.strategyType !== filters.strategy) return false;
     if (filters.session && trade.session !== filters.session) return false;
     if (filters.emotion && trade.emotionalState !== filters.emotion) return false;
@@ -85,8 +88,8 @@ export const TradeLogTable: React.FC<TradeLogTableProps> = ({
     if (filters.levelTimeframe && trade.levelTimeframe !== filters.levelTimeframe) return false;
     if (filters.confirmationTimeframe && trade.confirmationTimeframe !== filters.confirmationTimeframe) return false;
 
-    if (filters.startDate && new Date(trade.date) < new Date(filters.startDate)) return false;
-    if (filters.endDate && new Date(trade.date) > new Date(filters.endDate)) return false;
+    if (filters.startDate && trade.date && new Date(trade.date) < new Date(filters.startDate)) return false;
+    if (filters.endDate && trade.date && new Date(trade.date) > new Date(filters.endDate)) return false;
 
     return true;
   });
@@ -606,7 +609,7 @@ export const TradeLogTable: React.FC<TradeLogTableProps> = ({
                                   <div>Risk in Pips: <span className="text-slate-900 font-mono font-bold">{trade.riskPips}</span></div>
                                   <div>Position Size: <span className="text-slate-900 font-mono">{trade.positionSize || 1.0}</span></div>
                                   <div>Planned R:R: <span className="text-blue-700 font-mono font-bold">1:{trade.calculatedRiskReward}</span></div>
-                                  <div>Execution Rating: <span className="text-amber-500">{'★'.repeat(trade.rating || 4)}</span></div>
+                                  <div>Execution Rating: <span className="text-amber-500">{'★'.repeat(Math.max(1, Math.min(5, Math.floor(Number(trade.rating) || 4))))}</span></div>
                                 </div>
                                 {trade.tags && trade.tags.length > 0 && (
                                   <div className="flex flex-wrap gap-1 pt-1">
