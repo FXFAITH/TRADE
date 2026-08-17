@@ -385,6 +385,7 @@ export default function App() {
         isOpen={isNotionModalOpen}
         onClose={() => setIsNotionModalOpen(false)}
         trades={trades}
+        user={user}
         onTradesSynced={loadTrades}
       />
 

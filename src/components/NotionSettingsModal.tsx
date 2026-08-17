@@ -24,6 +24,7 @@ interface NotionSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   trades: Trade[];
+  user?: { email: string } | null;
   onTradesSynced?: () => void;
 }
 
@@ -31,6 +32,7 @@ export const NotionSettingsModal: React.FC<NotionSettingsModalProps> = ({
   isOpen,
   onClose,
   trades,
+  user,
   onTradesSynced,
 }) => {
   const [apiKey, setApiKey] = useState('');
@@ -99,7 +101,7 @@ export const NotionSettingsModal: React.FC<NotionSettingsModalProps> = ({
       connected: true,
     };
 
-    const res = await syncAllNotionTrades(trades, config);
+    const res = await syncAllNotionTrades(trades, config, user?.email);
     setIsSyncing(false);
 
     if (res.success) {
