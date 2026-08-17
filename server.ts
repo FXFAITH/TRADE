@@ -209,177 +209,139 @@ function parseNotionPageToTrade(page: any): any {
 }
 
 // Build Notion Page Properties from Trade object based on database schema
-function buildNotionPageProperties(trade: any, databaseSchema: any): Record<string, any> {
+function buildNotionPageProperties(trade: any, databaseSchema?: any): Record<string, any> {
   const schemaProps = databaseSchema?.properties || {};
   const properties: Record<string, any> = {};
 
-  // Exact or case-insensitive property finder
-  const getPropKey = (names: string[]): string | null => {
-    for (const target of names) {
-      for (const key of Object.keys(schemaProps)) {
-        if (key.toLowerCase() === target.toLowerCase()) {
-          return key;
-        }
-      }
-    }
-    for (const target of names) {
-      for (const key of Object.keys(schemaProps)) {
-        if (key.toLowerCase().includes(target.toLowerCase())) {
-          return key;
-        }
-      }
-    }
-    return null;
+  const propExists = (name: string, expectedType?: string) => {
+    if (!schemaProps || Object.keys(schemaProps).length === 0) return true;
+    const p = schemaProps[name];
+    if (!p) return false;
+    if (expectedType && p.type !== expectedType) return false;
+    return true;
   };
 
   // 1. Title / Symbol / Name
-  const titleKey = Object.keys(schemaProps).find((k) => schemaProps[k].type === "title") || "Name";
   const displayTitle = trade.symbol ? `${trade.symbol} - ${trade.strategyType || trade.direction || 'Trade'}` : 'Trade Entry';
-  properties[titleKey] = {
+  properties["Name"] = {
     title: [{ text: { content: displayTitle } }],
   };
 
-  // 2. Trader Email / User ID
-  const emailKey = getPropKey(["Trader Email", "User ID", "Email"]);
+  // 2. Trader Email
   const emailVal = trade.userId || trade.userEmail;
-  if (emailKey && emailVal) {
-    properties[emailKey] = {
+  if (emailVal && propExists("Trader Email")) {
+    properties["Trader Email"] = {
       rich_text: [{ text: { content: String(emailVal) } }],
     };
   }
 
   // 3. Direction
-  const dirKey = getPropKey(["Direction", "Side"]);
-  if (dirKey && trade.direction) {
-    properties[dirKey] = { select: { name: trade.direction } };
+  if (trade.direction && propExists("Direction", "select")) {
+    properties["Direction"] = { select: { name: trade.direction } };
   }
 
   // 4. Strategy Setup
-  const stratKey = getPropKey(["Strategy Setup", "Strategy", "Setup"]);
-  if (stratKey && trade.strategyType) {
-    properties[stratKey] = { select: { name: trade.strategyType } };
+  if (trade.strategyType && propExists("Strategy Setup", "select")) {
+    properties["Strategy Setup"] = { select: { name: trade.strategyType } };
   }
 
   // 5. Status
-  const statusKey = getPropKey(["Status", "Outcome", "Result"]);
-  if (statusKey) {
-    const statusVal = trade.status || "OPEN";
-    if (schemaProps[statusKey]?.type === "status") {
-      properties[statusKey] = { status: { name: statusVal } };
-    } else {
-      properties[statusKey] = { select: { name: statusVal } };
-    }
+  if (trade.status && propExists("Status", "select")) {
+    properties["Status"] = { select: { name: trade.status } };
   }
 
   // 6. Session
-  const sessionKey = getPropKey(["Session", "Trading Session"]);
-  if (sessionKey && trade.session) {
-    properties[sessionKey] = { select: { name: trade.session } };
+  if (trade.session && propExists("Session", "select")) {
+    properties["Session"] = { select: { name: trade.session } };
   }
 
   // 7. Timeframes
-  const levelTfKey = getPropKey(["Level Timeframe"]);
-  if (levelTfKey && trade.levelTimeframe) {
-    properties[levelTfKey] = { select: { name: trade.levelTimeframe } };
+  if (trade.levelTimeframe && propExists("Level Timeframe", "select")) {
+    properties["Level Timeframe"] = { select: { name: trade.levelTimeframe } };
   }
-
-  const confTfKey = getPropKey(["Confirmation Timeframe"]);
-  if (confTfKey && trade.confirmationTimeframe) {
-    properties[confTfKey] = { select: { name: trade.confirmationTimeframe } };
+  if (trade.confirmationTimeframe && propExists("Confirmation Timeframe", "select")) {
+    properties["Confirmation Timeframe"] = { select: { name: trade.confirmationTimeframe } };
   }
 
   // 8. Emotional State
-  const emotionKey = getPropKey(["Emotional State", "Emotion", "Psychology"]);
-  if (emotionKey && trade.emotionalState) {
-    properties[emotionKey] = { select: { name: trade.emotionalState } };
+  if (trade.emotionalState && propExists("Emotional State", "select")) {
+    properties["Emotional State"] = { select: { name: trade.emotionalState } };
   }
 
   // 9. Trade Date & Time
-  const dateKey = getPropKey(["Trade Date", "Date"]);
   const dateVal = trade.date || new Date().toISOString().split("T")[0];
-  if (dateKey && dateVal) {
-    properties[dateKey] = { date: { start: dateVal } };
+  if (dateVal && propExists("Trade Date", "date")) {
+    properties["Trade Date"] = { date: { start: dateVal } };
   }
-
-  const timeKey = getPropKey(["Trade Time", "Time"]);
-  if (timeKey && trade.time) {
-    properties[timeKey] = { rich_text: [{ text: { content: trade.time } }] };
+  if (trade.time && propExists("Trade Time")) {
+    properties["Trade Time"] = { rich_text: [{ text: { content: String(trade.time) } }] };
   }
 
   // 10. Numbers
-  const setNum = (names: string[], val?: number) => {
-    if (val === undefined || val === null || isNaN(Number(val))) return;
-    const k = getPropKey(names);
-    if (k && schemaProps[k]?.type === "number") {
-      properties[k] = { number: Number(val) };
+  const setNum = (propName: string, val: any) => {
+    if (val !== undefined && val !== null && !isNaN(Number(val)) && propExists(propName, "number")) {
+      properties[propName] = { number: Number(val) };
     }
   };
 
-  setNum(["Entry Price", "Entry"], trade.entryPrice);
-  setNum(["Exit Price", "Exit"], trade.exitPrice);
-  setNum(["Stop Loss", "SL"], trade.slPrice);
-  setNum(["Take Profit", "TP"], trade.tpPrice);
-  setNum(["PnL ($)", "PnL", "Profit"], trade.pnlAmount);
-  setNum(["PnL (Pips)", "PnL Pips"], trade.pnlPips);
-  setNum(["Risk:Reward", "Calculated Risk Reward", "Risk Reward", "R:R"], trade.calculatedRiskReward);
-  setNum(["Realized R:R", "Actual Risk Reward", "Actual RR"], trade.actualRiskReward);
-  setNum(["Risk (Pips)", "Risk Pips"], trade.riskPips);
-  setNum(["Lot Size", "Position Size"], trade.positionSize);
-  setNum(["Execution Rating", "Rating"], trade.rating);
+  setNum("Entry Price", trade.entryPrice);
+  setNum("Exit Price", trade.exitPrice);
+  setNum("Stop Loss", trade.slPrice);
+  setNum("Take Profit", trade.tpPrice);
+  setNum("PnL ($)", trade.pnlAmount);
+  setNum("PnL (Pips)", trade.pnlPips);
+  setNum("Risk:Reward", trade.calculatedRiskReward);
+  setNum("Realized R:R", trade.actualRiskReward);
+  setNum("Risk (Pips)", trade.riskPips);
+  setNum("Lot Size", trade.positionSize);
+  setNum("Execution Rating", trade.rating);
 
   // 11. Risk-Free / Breakeven Checkbox
-  const rfKey = getPropKey(["Risk Free / Breakeven", "Risk Free", "Breakeven"]);
-  if (rfKey && schemaProps[rfKey]?.type === "checkbox") {
-    properties[rfKey] = { checkbox: Boolean(trade.isRiskFree) };
+  if (propExists("Risk Free / Breakeven", "checkbox")) {
+    properties["Risk Free / Breakeven"] = { checkbox: Boolean(trade.isRiskFree) };
   }
 
   // 12. Notes & Partial Exit Note
-  const notesKey = getPropKey(["Journal Notes", "Notes", "Review"]);
-  if (notesKey && trade.notes) {
-    properties[notesKey] = {
-      rich_text: [{ text: { content: trade.notes.slice(0, 1999) } }],
+  if (trade.notes && propExists("Journal Notes")) {
+    properties["Journal Notes"] = {
+      rich_text: [{ text: { content: String(trade.notes).slice(0, 1999) } }],
     };
   }
-
-  const partialKey = getPropKey(["Partial Exit Note", "Partial Note"]);
-  if (partialKey && trade.partialExitNote) {
-    properties[partialKey] = {
-      rich_text: [{ text: { content: trade.partialExitNote.slice(0, 1999) } }],
+  if (trade.partialExitNote && propExists("Partial Exit Note")) {
+    properties["Partial Exit Note"] = {
+      rich_text: [{ text: { content: String(trade.partialExitNote).slice(0, 1999) } }],
     };
   }
 
   // 13. Tags Multi-Select
-  const tagsKey = getPropKey(["Tags"]);
-  if (tagsKey && schemaProps[tagsKey]?.type === "multi_select" && Array.isArray(trade.tags) && trade.tags.length > 0) {
-    properties[tagsKey] = {
-      multi_select: trade.tags.map((t: string) => ({ name: t.trim() })).filter((t: any) => t.name.length > 0),
+  if (Array.isArray(trade.tags) && trade.tags.length > 0 && propExists("Tags", "multi_select")) {
+    properties["Tags"] = {
+      multi_select: trade.tags.map((t: string) => ({ name: String(t).trim() })).filter((t: any) => t.name.length > 0),
     };
   }
 
   // 14. TradingView URL
-  const tvKey = getPropKey(["TradingView URL", "Chart Link", "URL"]);
-  const tvUrl = trade.tradingViewUrl || (trade.chartImages && trade.chartImages.find((img: string) => img.startsWith("http")));
-  if (tvKey && tvUrl) {
-    properties[tvKey] = { url: tvUrl };
+  const tvUrl = trade.tradingViewUrl || (trade.chartImages && trade.chartImages.find((img: string) => typeof img === 'string' && img.startsWith("http")));
+  if (tvUrl && propExists("TradingView URL", "url")) {
+    properties["TradingView URL"] = { url: tvUrl };
   }
 
   // 15. Chart Screenshot / Files
-  const filesKey = getPropKey(["Chart Screenshot", "Screenshot", "Files"]);
-  if (filesKey && schemaProps[filesKey]?.type === "files") {
+  if (propExists("Chart Screenshot", "files")) {
     const validUrls: string[] = [];
-    if (trade.tradingViewUrl && trade.tradingViewUrl.startsWith("http")) {
+    if (trade.tradingViewUrl && typeof trade.tradingViewUrl === 'string' && trade.tradingViewUrl.startsWith("http")) {
       validUrls.push(trade.tradingViewUrl);
     }
     if (Array.isArray(trade.chartImages)) {
       trade.chartImages.forEach((img: string) => {
-        if (img && img.startsWith("http") && !validUrls.includes(img)) {
+        if (img && typeof img === 'string' && img.startsWith("http") && !validUrls.includes(img)) {
           validUrls.push(img);
         }
       });
     }
 
     if (validUrls.length > 0) {
-      properties[filesKey] = {
+      properties["Chart Screenshot"] = {
         files: validUrls.map((url, idx) => ({
           name: `TradingView Chart ${idx + 1}`,
           type: "external",
