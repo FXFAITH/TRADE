@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { Client as NotionClient } from "@notionhq/client";
@@ -332,6 +333,44 @@ async function startServer() {
   const DEFAULT_NOTION_API_KEY = process.env.NOTION_API_KEY || "ntn_Q38234662644sLexkBRmI46birmVGxUHESVj8PrVosR0Oi";
   const DEFAULT_NOTION_DATABASE_ID = process.env.NOTION_DATABASE_ID || "3bf0e3e57718801182ece24131bad598";
 
+  // Helper to save base64 image and return public URL
+  function saveBase64ImageLocally(base64Str: string, req: express.Request): string | null {
+    try {
+      if (!base64Str || typeof base64Str !== "string") return null;
+      if (base64Str.startsWith("http://") || base64Str.startsWith("https://")) return base64Str;
+      if (!base64Str.startsWith("data:image/")) return null;
+
+      const uploadsDir = path.join(process.cwd(), "public", "uploads");
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) return null;
+
+      const ext = matches[1].split("/")[1] || "png";
+      const buffer = Buffer.from(matches[2], "base64");
+      const filename = `chart-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+      const filepath = path.join(uploadsDir, filename);
+
+      fs.writeFileSync(filepath, buffer);
+
+      const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
+      const host = req.headers["x-forwarded-host"] || req.get("host") || "localhost";
+      return `${protocol}://${host}/uploads/${filename}`;
+    } catch (e) {
+      console.error("Failed saving base64 image:", e);
+      return null;
+    }
+  }
+
+  // Serve uploads
+  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.use("/uploads", express.static(uploadsDir));
+
   // API Health Check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
@@ -478,7 +517,16 @@ async function startServer() {
         });
       }
 
-      const trade = req.body;
+      let trade = req.body;
+      if (Array.isArray(trade.chartImages)) {
+        trade.chartImages = trade.chartImages.map((img: string) => {
+          if (img && img.startsWith("data:image/")) {
+            return saveBase64ImageLocally(img, req) || img;
+          }
+          return img;
+        });
+      }
+
       const notion = new NotionClient({ auth: apiKey });
       const dbSchema: any = await notion.databases.retrieve({ database_id: databaseId });
 
@@ -583,6 +631,15 @@ async function startServer() {
       let createdCount = 0;
       for (const trade of trades) {
         try {
+          if (Array.isArray(trade.chartImages)) {
+            trade.chartImages = trade.chartImages.map((img: string) => {
+              if (img && img.startsWith("data:image/")) {
+                return saveBase64ImageLocally(img, req) || img;
+              }
+              return img;
+            });
+          }
+
           const properties = buildNotionPageProperties(trade, dbSchema);
           await notion.pages.create({
             parent: { database_id: databaseId },
