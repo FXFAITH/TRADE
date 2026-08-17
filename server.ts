@@ -184,120 +184,113 @@ function buildNotionPageProperties(trade: any, databaseSchema: any): Record<stri
   const schemaProps = databaseSchema?.properties || {};
   const properties: Record<string, any> = {};
 
-  // Find exact or matching property name in schema
-  const findProp = (keywords: string[], type?: string): { key: string; schema: any } | null => {
-    for (const key of Object.keys(schemaProps)) {
-      const p = schemaProps[key];
-      const matchKey = keywords.some(k => key.toLowerCase() === k.toLowerCase() || key.toLowerCase().includes(k.toLowerCase()));
-      if (matchKey && (!type || p.type === type)) {
-        return { key, schema: p };
+  // Exact or case-insensitive property finder
+  const getPropKey = (names: string[]): string | null => {
+    for (const target of names) {
+      for (const key of Object.keys(schemaProps)) {
+        if (key.toLowerCase() === target.toLowerCase()) {
+          return key;
+        }
+      }
+    }
+    for (const target of names) {
+      for (const key of Object.keys(schemaProps)) {
+        if (key.toLowerCase().includes(target.toLowerCase())) {
+          return key;
+        }
       }
     }
     return null;
   };
 
-  // 1. Title / Symbol
-  const titleProp = Object.entries(schemaProps).find(([_, p]: any) => p.type === "title");
-  if (titleProp) {
-    properties[titleProp[0]] = {
-      title: [{ text: { content: trade.symbol || "Trade Entry" } }],
+  // 1. Title / Symbol / Name
+  const titleKey = Object.keys(schemaProps).find((k) => schemaProps[k].type === "title") || "Name";
+  const displayTitle = trade.symbol ? `${trade.symbol} - ${trade.strategyType || trade.direction || 'Trade'}` : 'Trade Entry';
+  properties[titleKey] = {
+    title: [{ text: { content: displayTitle } }],
+  };
+
+  // 2. Trader Email / User ID
+  const emailKey = getPropKey(["Trader Email", "User ID", "Email"]);
+  const emailVal = trade.userId || trade.userEmail;
+  if (emailKey && emailVal) {
+    properties[emailKey] = {
+      rich_text: [{ text: { content: String(emailVal) } }],
     };
   }
 
-  // 1b. Trader Email / User ID (Multi-user Isolation)
-  const emailProp = findProp(["trader email", "user email", "email", "user id"], "rich_text");
-  if (emailProp && (trade.userId || trade.userEmail)) {
-    properties[emailProp.key] = {
-      rich_text: [{ text: { content: trade.userId || trade.userEmail } }],
-    };
-  }
-
-  // 2. Direction
-  const dirProp = findProp(["direction", "side", "type"], "select");
-  if (dirProp) {
-    properties[dirProp.key] = { select: { name: trade.direction || "LONG" } };
-  }
-
-  // 3. Status
-  const statusProp = findProp(["status", "outcome", "result"]);
-  if (statusProp) {
-    if (statusProp.schema.type === "status") {
-      properties[statusProp.key] = { status: { name: trade.status || "OPEN" } };
-    } else if (statusProp.schema.type === "select") {
-      properties[statusProp.key] = { select: { name: trade.status || "OPEN" } };
-    }
+  // 3. Direction
+  const dirKey = getPropKey(["Direction", "Side"]);
+  if (dirKey && trade.direction) {
+    properties[dirKey] = { select: { name: trade.direction } };
   }
 
   // 4. Strategy Setup
-  const stratProp = findProp(["strategy", "strategy setup", "setup"], "select");
-  if (stratProp) {
-    properties[stratProp.key] = { select: { name: trade.strategyType || "DEMAND" } };
+  const stratKey = getPropKey(["Strategy Setup", "Strategy", "Setup"]);
+  if (stratKey && trade.strategyType) {
+    properties[stratKey] = { select: { name: trade.strategyType } };
   }
 
-  // 5. Session
-  const sessionProp = findProp(["session"], "select");
-  if (sessionProp && trade.session) {
-    properties[sessionProp.key] = { select: { name: trade.session } };
+  // 5. Status
+  const statusKey = getPropKey(["Status", "Outcome", "Result"]);
+  if (statusKey) {
+    const statusVal = trade.status || "OPEN";
+    if (schemaProps[statusKey]?.type === "status") {
+      properties[statusKey] = { status: { name: statusVal } };
+    } else {
+      properties[statusKey] = { select: { name: statusVal } };
+    }
   }
 
-  // 6. Emotion
-  const emotionProp = findProp(["emotion", "emotional state", "psychology"], "select");
-  if (emotionProp && trade.emotionalState) {
-    properties[emotionProp.key] = { select: { name: trade.emotionalState } };
+  // 6. Session
+  const sessionKey = getPropKey(["Session"]);
+  if (sessionKey && trade.session) {
+    properties[sessionKey] = { select: { name: trade.session } };
   }
 
-  // 7. Date
-  const dateProp = findProp(["date", "trade date"], "date");
-  if (dateProp && trade.date) {
-    properties[dateProp.key] = { date: { start: trade.date } };
+  // 7. Emotional State
+  const emotionKey = getPropKey(["Emotional State", "Emotion", "Psychology"]);
+  if (emotionKey && trade.emotionalState) {
+    properties[emotionKey] = { select: { name: trade.emotionalState } };
   }
 
-  // 8. Numbers
-  const setNum = (keywords: string[], value?: number) => {
-    if (value === undefined || isNaN(value)) return;
-    const prop = findProp(keywords, "number");
-    if (prop) {
-      properties[prop.key] = { number: Number(value) };
+  // 8. Trade Date
+  const dateKey = getPropKey(["Trade Date", "Date"]);
+  const dateVal = trade.date || new Date().toISOString().split("T")[0];
+  if (dateKey && dateVal) {
+    properties[dateKey] = { date: { start: dateVal } };
+  }
+
+  // 9. Numbers
+  const setNum = (names: string[], val?: number) => {
+    if (val === undefined || isNaN(val)) return;
+    const k = getPropKey(names);
+    if (k && schemaProps[k]?.type === "number") {
+      properties[k] = { number: Number(val) };
     }
   };
 
-  setNum(["entry price", "entry"], trade.entryPrice);
-  setNum(["exit price", "exit"], trade.exitPrice);
-  setNum(["stop loss", "sl"], trade.slPrice);
-  setNum(["take profit", "tp"], trade.tpPrice);
-  setNum(["risk pips", "risk"], trade.riskPips);
-  setNum(["position size", "lot", "lots", "size"], trade.positionSize);
-  setNum(["pnl", "net pnl", "profit", "p&l"], trade.pnlAmount);
-  setNum(["pnl pips", "pips"], trade.pnlPips);
-  setNum(["risk reward", "r:r", "calculated risk reward", "rr"], trade.calculatedRiskReward);
+  setNum(["Entry Price", "Entry"], trade.entryPrice);
+  setNum(["Exit Price", "Exit"], trade.exitPrice);
+  setNum(["Stop Loss", "SL"], trade.slPrice);
+  setNum(["Take Profit", "TP"], trade.tpPrice);
+  setNum(["PnL ($)", "PnL", "Profit"], trade.pnlAmount);
+  setNum(["Risk:Reward", "Risk Reward", "Calculated Risk Reward", "R:R"], trade.calculatedRiskReward || trade.actualRiskReward);
+  setNum(["Risk (Pips)", "Risk Pips"], trade.riskPips);
+  setNum(["Lot Size", "Position Size"], trade.positionSize);
 
-  // 9. Notes / Rich text
-  const notesProp = findProp(["notes", "review", "journal notes"], "rich_text");
-  if (notesProp && trade.notes) {
-    properties[notesProp.key] = {
+  // 10. Notes
+  const notesKey = getPropKey(["Journal Notes", "Notes", "Review"]);
+  if (notesKey && trade.notes) {
+    properties[notesKey] = {
       rich_text: [{ text: { content: trade.notes.slice(0, 1999) } }],
     };
   }
 
-  // 10. TradingView link
-  const tvProp = findProp(["tradingview", "chart link", "tv url"], "url");
-  if (tvProp && trade.tradingViewUrl) {
-    properties[tvProp.key] = { url: trade.tradingViewUrl };
-  }
-
-  // 11. Screenshots / Files
-  const filesProp = findProp(["screenshot", "chart image", "attachments", "images"], "files");
-  if (filesProp && trade.chartImages && trade.chartImages.length > 0) {
-    const validUrls = trade.chartImages.filter((img: string) => img.startsWith("http"));
-    if (validUrls.length > 0) {
-      properties[filesProp.key] = {
-        files: validUrls.map((url: string, index: number) => ({
-          name: `Screenshot ${index + 1}`,
-          type: "external",
-          external: { url },
-        })),
-      };
-    }
+  // 11. TradingView URL
+  const tvKey = getPropKey(["TradingView URL", "Chart Link", "URL"]);
+  if (tvKey && trade.tradingViewUrl) {
+    properties[tvKey] = { url: trade.tradingViewUrl };
   }
 
   return properties;
