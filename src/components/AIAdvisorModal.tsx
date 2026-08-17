@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sparkles,
   X,
@@ -15,7 +15,11 @@ import {
   ShieldAlert,
   Award,
   Flame,
-  FileText
+  FileText,
+  Key,
+  Settings,
+  ExternalLink,
+  Download,
 } from 'lucide-react';
 import { Trade, AIInsightResult } from '../types';
 import { calculateSummaryStats, SummaryStats } from '../utils/calculations';
@@ -37,6 +41,8 @@ const PERIOD_LABELS: Record<PeriodKey, string> = {
   'all': 'All Time Journal',
 };
 
+const LOCAL_STORAGE_GEMINI_KEY = 'trade_journal_gemini_api_key_v1';
+
 export const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({
   isOpen,
   onClose,
@@ -48,6 +54,18 @@ export const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({
   const [insight, setInsight] = useState<AIInsightResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Custom API key configuration
+  const [customApiKey, setCustomApiKey] = useState<string>(() => {
+    return localStorage.getItem(LOCAL_STORAGE_GEMINI_KEY) || '';
+  });
+  const [apiKeyInput, setApiKeyInput] = useState<string>('');
+  const [showKeyConfig, setShowKeyConfig] = useState<boolean>(false);
+  const [keySavedToast, setKeySavedToast] = useState(false);
+
+  useEffect(() => {
+    setApiKeyInput(customApiKey);
+  }, [customApiKey]);
 
   // Filter trades based on selected period
   const filteredTrades = useMemo(() => {
@@ -80,6 +98,18 @@ export const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleSaveApiKey = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanKey = apiKeyInput.trim();
+    localStorage.setItem(LOCAL_STORAGE_GEMINI_KEY, cleanKey);
+    setCustomApiKey(cleanKey);
+    setKeySavedToast(true);
+    setTimeout(() => {
+      setKeySavedToast(false);
+      setShowKeyConfig(false);
+    }, 1500);
+  };
+
   const handleGenerateInsights = async () => {
     setLoading(true);
     setError(null);
@@ -92,11 +122,15 @@ export const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({
           trades: filteredTrades,
           summaryStats: periodSummaryStats,
           period: PERIOD_LABELS[selectedPeriod],
+          apiKey: customApiKey || undefined,
         }),
       });
 
       if (!response.ok) {
         const errData = await response.json();
+        if (errData.error && errData.error.toLowerCase().includes('api key')) {
+          setShowKeyConfig(true);
+        }
         throw new Error(errData.error || 'Failed to fetch AI performance report.');
       }
 
@@ -109,8 +143,8 @@ export const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({
     }
   };
 
-  const handleCopyReport = () => {
-    if (!insight) return;
+  const getFullReportText = () => {
+    if (!insight) return '';
 
     const mistakesText = insight.majorMistakes
       ? insight.majorMistakes
@@ -126,7 +160,7 @@ export const AIAdvisorModal: React.FC<AIAdvisorModalProps> = ({
       .map((p, i) => `${i + 1}. ${p}`)
       .join('\n');
 
-    const reportText = `=== AI TRADING JOURNAL PERFORMANCE REPORT ===
+    return `=== AI TRADING JOURNAL PERFORMANCE REPORT ===
 Period Analyzed: ${insight.periodAnalyzed || PERIOD_LABELS[selectedPeriod]}
 Overall Grade: ${insight.overallGrade || insight.riskManagementGrade || 'N/A'} (Score: ${insight.performanceScore ?? 'N/A'}/100)
 Trades Analyzed: ${filteredTrades.length} | Win Rate: ${periodSummaryStats.winRate}% | Net P&L: $${periodSummaryStats.netPnL}
@@ -149,10 +183,28 @@ ${planText || 'N/A'}
 --- NEXT PERIOD DIRECTIVE ---
 ${insight.ruleOfThumbForNextPeriod || 'Stick strictly to stop losses and risk-reward rules.'}
 `;
+  };
+
+  const handleCopyReport = () => {
+    const reportText = getFullReportText();
+    if (!reportText) return;
 
     navigator.clipboard.writeText(reportText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleDownloadReport = () => {
+    const reportText = getFullReportText();
+    if (!reportText) return;
+
+    const element = document.createElement('a');
+    const file = new Blob([reportText], { type: 'text/markdown;charset=utf-8' });
+    element.href = URL.createObjectURL(file);
+    element.download = `AI_Trading_Report_${selectedPeriod}_${new Date().toISOString().split('T')[0]}.md`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
   };
 
   return (
@@ -162,26 +214,79 @@ ${insight.ruleOfThumbForNextPeriod || 'Stick strictly to stop losses and risk-re
         {/* Header */}
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-600/30 text-blue-400 border border-blue-500/30">
+            <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/20">
               <Brain className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-extrabold tracking-tight text-white">AI Performance Audit & Unfiltered Review</h2>
+                <h2 className="text-base font-extrabold tracking-tight text-white">AI Performance Report &amp; Trade Audit</h2>
                 <span className="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-mono font-bold border border-blue-400/30">
-                  GEMINI 3.6
+                  AI ACTIVE
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Brutally honest feedback on execution mistakes, psychological leaks, and habit fixes.</p>
+              <p className="text-xs text-slate-400">Quantitative audit of execution mistakes, psychological traps, and habit fixes.</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowKeyConfig((prev) => !prev)}
+              className={`p-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                showKeyConfig || !customApiKey
+                  ? 'bg-amber-950/60 border-amber-700 text-amber-300'
+                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+              }`}
+              title="Configure Gemini AI Key"
+            >
+              <Key className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{customApiKey ? 'API Key Linked' : 'Set API Key'}</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
+
+        {/* API Key Configuration Panel */}
+        {showKeyConfig && (
+          <div className="bg-amber-50/90 border-b border-amber-200 p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            <form onSubmit={handleSaveApiKey} className="max-w-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-amber-700" /> Google Gemini API Key
+                </span>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-blue-700 hover:underline flex items-center gap-1 font-semibold"
+                >
+                  Get free key from Google AI Studio <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="Paste your Gemini API key (AIzaSy...)"
+                  className="flex-1 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                >
+                  {keySavedToast ? 'Saved! ✓' : 'Save Key'}
+                </button>
+              </div>
+              <p className="text-[11px] text-amber-800">
+                Key is securely kept in your local browser session and sent to generate your private performance reports.
+              </p>
+            </form>
+          </div>
+        )}
 
         {/* Timeframe Selector Bar */}
         <div className="bg-slate-100 border-b border-slate-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -194,9 +299,9 @@ ${insight.ruleOfThumbForNextPeriod || 'Stick strictly to stop losses and risk-re
                 key={periodKey}
                 onClick={() => {
                   setSelectedPeriod(periodKey);
-                  setInsight(null); // Reset report preview on period change
+                  setInsight(null);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   selectedPeriod === periodKey
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
@@ -247,7 +352,7 @@ ${insight.ruleOfThumbForNextPeriod || 'Stick strictly to stop losses and risk-re
             <button
               onClick={handleGenerateInsights}
               disabled={loading || filteredTrades.length === 0}
-              className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-all shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               {loading ? (
                 <>
@@ -272,9 +377,19 @@ ${insight.ruleOfThumbForNextPeriod || 'Stick strictly to stop losses and risk-re
           )}
 
           {error && (
-            <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl text-rose-800 font-medium flex items-center gap-2 shadow-sm">
-              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
-              <span>{error}</span>
+            <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl text-rose-800 font-medium space-y-2 shadow-sm">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                <span className="font-bold text-xs">{error}</span>
+              </div>
+              {!customApiKey && (
+                <button
+                  onClick={() => setShowKeyConfig(true)}
+                  className="mt-2 text-xs bg-rose-600 text-white font-bold px-3 py-1.5 rounded-lg hover:bg-rose-500 transition-colors flex items-center gap-1.5"
+                >
+                  <Key className="w-3.5 h-3.5" /> Set Gemini API Key Now
+                </button>
+              )}
             </div>
           )}
 
@@ -293,22 +408,32 @@ ${insight.ruleOfThumbForNextPeriod || 'Stick strictly to stop losses and risk-re
                     <span className="text-blue-700 text-xs font-semibold ml-2">({insight.periodAnalyzed || PERIOD_LABELS[selectedPeriod]})</span>
                   </div>
                 </div>
-                <button
-                  onClick={handleCopyReport}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-blue-700 font-bold border border-blue-200 text-xs transition-colors shadow-sm"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      Report Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      Copy Report Text
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDownloadReport}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-bold border border-slate-200 text-xs transition-colors shadow-sm cursor-pointer"
+                    title="Export report as Markdown file"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download</span>
+                  </button>
+                  <button
+                    onClick={handleCopyReport}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors shadow-sm cursor-pointer"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-white" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy Text
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               {/* Grade, Score & Executive Summary */}

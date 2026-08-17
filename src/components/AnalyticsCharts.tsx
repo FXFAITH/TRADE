@@ -34,9 +34,10 @@ import {
 interface AnalyticsChartsProps {
   trades: Trade[];
   initialBalance: number;
+  onOpenAIAdvisor?: () => void;
 }
 
-export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ trades, initialBalance }) => {
+export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ trades, initialBalance, onOpenAIAdvisor }) => {
   const [chartTimeframe, setChartTimeframe] = useState<'all' | '30d' | '7d'>('all');
 
   // Filter trades by timeframe if selected
@@ -77,27 +78,39 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ trades, initia
         <div>
           <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-blue-600" />
-            Performance & Psychological Analytics
+            Performance &amp; Psychological Analytics
           </h2>
           <p className="text-xs text-slate-500">
             Equity trajectory, strategy win rates, and emotional correlation matrix.
           </p>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
-          {(['all', '30d', '7d'] as const).map((tf) => (
+        <div className="flex items-center gap-2 flex-wrap">
+          {onOpenAIAdvisor && (
             <button
-              key={tf}
-              onClick={() => setChartTimeframe(tf)}
-              className={`px-3 py-1 rounded-md text-xs font-bold uppercase transition-all ${
-                chartTimeframe === tf
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
+              onClick={onOpenAIAdvisor}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer"
             >
-              {tf === 'all' ? 'All Time' : tf}
+              <Brain className="w-3.5 h-3.5 text-amber-300" />
+              <span>AI Audit Report</span>
             </button>
-          ))}
+          )}
+
+          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+            {(['all', '30d', '7d'] as const).map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setChartTimeframe(tf)}
+                className={`px-3 py-1 rounded-md text-xs font-bold uppercase transition-all cursor-pointer ${
+                  chartTimeframe === tf
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {tf === 'all' ? 'All Time' : tf}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

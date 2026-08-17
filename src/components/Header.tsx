@@ -183,14 +183,14 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* AI Trading Coach */}
+            {/* AI Trading Report & Audit */}
             <button
               onClick={onOpenAIAdvisor}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-950/80 hover:bg-indigo-900/90 text-indigo-200 border border-indigo-700/50 text-xs font-semibold transition-all shadow-sm"
-              title="Get AI analysis on trading psychology & strategy"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-600 hover:from-indigo-500 hover:to-blue-500 text-white border border-indigo-400/30 text-xs font-bold transition-all shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+              title="Open AI Performance Audit & Trading Psychology Report"
             >
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-              <span className="hidden sm:inline">AI Advisor</span>
+              <Brain className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <span>AI Report</span>
             </button>
 
             {/* Import / Export */}

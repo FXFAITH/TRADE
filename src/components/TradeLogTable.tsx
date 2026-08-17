@@ -29,6 +29,7 @@ interface TradeLogTableProps {
   onDeleteTrade: (id: string) => void;
   onOpenNewTrade: () => void;
   onViewImageLightbox: (imageUrl: string) => void;
+  onOpenAIAdvisor?: () => void;
 }
 
 export const TradeLogTable: React.FC<TradeLogTableProps> = ({
@@ -39,6 +40,7 @@ export const TradeLogTable: React.FC<TradeLogTableProps> = ({
   onDeleteTrade,
   onOpenNewTrade,
   onViewImageLightbox,
+  onOpenAIAdvisor,
 }) => {
   const [expandedTradeId, setExpandedTradeId] = useState<string | null>(null);
   const [deletingTradeId, setDeletingTradeId] = useState<string | null>(null);
@@ -301,9 +303,21 @@ export const TradeLogTable: React.FC<TradeLogTableProps> = ({
                     endDate: '',
                   })
                 }
-                className="text-xs text-rose-600 hover:underline px-2 py-1 font-semibold"
+                className="text-xs text-rose-600 hover:underline px-2 py-1 font-semibold cursor-pointer"
               >
                 Clear Filters
+              </button>
+            )}
+
+            {/* AI Report Trigger Button */}
+            {onOpenAIAdvisor && (
+              <button
+                onClick={onOpenAIAdvisor}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-all shadow-sm cursor-pointer ml-auto"
+                title="Run AI Performance Audit on current trades"
+              >
+                <Brain className="w-3.5 h-3.5 text-indigo-600" />
+                <span>AI Report</span>
               </button>
             )}
 

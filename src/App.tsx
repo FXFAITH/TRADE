@@ -336,7 +336,11 @@ export default function App() {
         )}
 
         {/* Top Summary Metrics */}
-        <MetricsOverview stats={summaryStats} initialBalance={accountConfig.initialBalance} />
+        <MetricsOverview
+          stats={summaryStats}
+          initialBalance={accountConfig.initialBalance}
+          onOpenAIAdvisor={() => setIsAIAdvisorOpen(true)}
+        />
 
         {/* Tab Content */}
         {activeTab === 'trades' ? (
@@ -351,9 +355,14 @@ export default function App() {
               setIsTradeModalOpen(true);
             }}
             onViewImageLightbox={(imgUrl) => setLightboxImage(imgUrl)}
+            onOpenAIAdvisor={() => setIsAIAdvisorOpen(true)}
           />
         ) : (
-          <AnalyticsCharts trades={trades} initialBalance={accountConfig.initialBalance} />
+          <AnalyticsCharts
+            trades={trades}
+            initialBalance={accountConfig.initialBalance}
+            onOpenAIAdvisor={() => setIsAIAdvisorOpen(true)}
+          />
         )}
 
       </main>

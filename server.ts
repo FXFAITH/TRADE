@@ -709,20 +709,21 @@ async function startServer() {
   // -------------------------------------------------------------
   app.post("/api/ai-insights", async (req, res) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
+      const { trades, summaryStats, period, apiKey: clientApiKey } = req.body;
+      const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
+
+      if (!apiKey || apiKey.trim() === '') {
         return res.status(400).json({
-          error: "Gemini API key is not configured in environment variables.",
+          error: "Gemini API key is not configured. Please enter your free Gemini API key in the AI Advisor modal or add GEMINI_API_KEY to your .env file.",
         });
       }
 
-      const { trades, summaryStats, period } = req.body;
       if (!trades || !Array.isArray(trades)) {
         return res.status(400).json({ error: "Invalid trade dataset provided." });
       }
 
       const ai = new GoogleGenAI({
-        apiKey,
+        apiKey: apiKey.trim(),
         httpOptions: {
           headers: {
             "User-Agent": "aistudio-build",
@@ -767,40 +768,58 @@ ${JSON.stringify(
 
 Analyze this exact dataset and produce a structured JSON response with the following JSON schema:
 {
-  "periodAnalyzed": string, // e.g. "${periodName}"
-  "overallGrade": string, // e.g. "B-", "A+", "C", "D", "F"
-  "performanceScore": number, // Score from 0 to 100 based on discipline, R:R adherence, win rate, and emotional control
-  "executiveSummary": string, // 2-3 sentences evaluating overall execution, profit consistency, and major behavior during this period
-  "tradeCountInPeriod": number, // count of trades in this set
-  "periodWinRate": number, // win rate percentage number
-  "periodNetPnL": number, // total P&L number for this period
-  "riskManagementGrade": string, // e.g. "A", "B-", "D" evaluating stop-loss discipline and R:R ratios
-  "psychologyInsight": string, // Detailed breakdown of how emotional states (FOMO, Revenge, Anxiety, Overconfidence) impacted P&L and win rate
-  "keyStrengths": string[], // 3 specific strengths or best habits observed in this period
-  "areasForImprovement": string[], // 3 specific vulnerabilities or bad habits detected in this period
+  "periodAnalyzed": string,
+  "overallGrade": string,
+  "performanceScore": number,
+  "executiveSummary": string,
+  "tradeCountInPeriod": number,
+  "periodWinRate": number,
+  "periodNetPnL": number,
+  "riskManagementGrade": string,
+  "psychologyInsight": string,
+  "keyStrengths": string[],
+  "areasForImprovement": string[],
   "majorMistakes": [
     {
-      "title": string, // e.g. "Revenge Overtrading After Loss"
-      "category": string, // Must be one of: "Risk", "Psychology", "Technical", "Execution"
-      "description": string, // Specific explanation referencing trades, notes, or patterns
-      "impact": string // Financial or psychological impact e.g. "-$420 loss across 3 impulsive trades"
+      "title": string,
+      "category": string,
+      "description": string,
+      "impact": string
     }
   ],
-  "whatWentRight": string[], // 3 concrete things that worked well during this timeframe
-  "actionableRules": string[], // 3-4 golden rules for the upcoming trading period
-  "improvementPlan": string[], // 4 step-by-step instructions to fix leaks immediately
-  "ruleOfThumbForNextPeriod": string // A punchy, memorable 1-sentence motto/directive for the next week/month
+  "whatWentRight": string[],
+  "actionableRules": string[],
+  "improvementPlan": string[],
+  "ruleOfThumbForNextPeriod": string
 }
 
 Return ONLY valid raw JSON with no markdown wrapping.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-        },
-      });
+      let response;
+      const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+      let lastErr = null;
+
+      for (const modelName of candidateModels) {
+        try {
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json",
+            },
+          });
+          if (response && response.text) {
+            break;
+          }
+        } catch (err: any) {
+          lastErr = err;
+          console.warn(`Model ${modelName} failed, trying next candidate...`, err?.message);
+        }
+      }
+
+      if (!response || !response.text) {
+        throw lastErr || new Error("Failed to get a response from Gemini model.");
+      }
 
       const responseText = response.text || "{}";
       const parsed = JSON.parse(responseText);

@@ -1,13 +1,14 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, Target, Scale, Zap, ShieldAlert, Award } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, Scale, Zap, ShieldAlert, Award, Brain, Sparkles } from 'lucide-react';
 import { SummaryStats } from '../utils/calculations';
 
 interface MetricsOverviewProps {
   stats: SummaryStats;
   initialBalance: number;
+  onOpenAIAdvisor?: () => void;
 }
 
-export const MetricsOverview: React.FC<MetricsOverviewProps> = ({ stats, initialBalance }) => {
+export const MetricsOverview: React.FC<MetricsOverviewProps> = ({ stats, initialBalance, onOpenAIAdvisor }) => {
   const safeNetPnL = stats?.netPnL || 0;
   const safeInitBalance = initialBalance || 10000;
   const isPositivePnL = safeNetPnL >= 0;
@@ -15,7 +16,36 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({ stats, initial
   const returnPercentage = Number(((safeNetPnL / safeInitBalance) * 100).toFixed(2));
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div className="space-y-3">
+      {onOpenAIAdvisor && (
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-4 py-2.5 rounded-xl border border-indigo-800/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-indigo-600 text-white shadow-sm">
+              <Brain className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                AI Performance Audit Available
+                <span className="bg-indigo-500/30 text-indigo-300 border border-indigo-400/30 px-1.5 py-0.2 rounded text-[10px] font-mono">
+                  ACTIVE
+                </span>
+              </span>
+              <p className="text-[11px] text-slate-300">
+                Run an intelligent scan of your trading psychology, R:R consistency, and leaks.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onOpenAIAdvisor}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            Launch AI Audit Report
+          </button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
       
       {/* Net P&L Card */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all">
@@ -118,5 +148,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({ stats, initial
       </div>
 
     </div>
+    </div>
   );
 };
+
