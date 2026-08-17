@@ -519,6 +519,12 @@ async function startServer() {
               rich_text: {
                 contains: clean,
               },
+            },
+            {
+              property: "Trader Email",
+              rich_text: {
+                is_empty: true,
+              },
             }
           ]
         };
