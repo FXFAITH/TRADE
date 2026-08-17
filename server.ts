@@ -845,10 +845,19 @@ Return ONLY valid raw JSON with no markdown wrapping.`;
         const fallbackModels = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash-exp', 'gemini-1.5-pro-latest', 'gemini-pro'];
         for (const modelName of fallbackModels) {
           try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`;
+            const cleanKey = apiKey.trim();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            let url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+            
+            if (cleanKey.startsWith('AQ.') || cleanKey.startsWith('ya29.')) {
+              headers['Authorization'] = `Bearer ${cleanKey}`;
+            } else {
+              url += `?key=${cleanKey}`;
+            }
+
             const restRes = await fetch(url, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify({
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
@@ -875,7 +884,11 @@ Return ONLY valid raw JSON with no markdown wrapping.`;
       }
 
       if (!responseText) {
-        throw lastError || new Error("Unable to reach any Gemini AI model. Please verify your API key.");
+        const isKeyMalformed = !apiKey.trim().startsWith('AIzaSy');
+        const hint = isKeyMalformed
+          ? " (Note: A standard Google Gemini API key starts with 'AIzaSy...'. Please copy your full API key from https://aistudio.google.com/app/apikey)."
+          : "";
+        throw new Error((lastError?.message || "Failed to reach Gemini API.") + hint);
       }
 
       // Clean markdown code blocks if present
