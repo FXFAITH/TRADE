@@ -797,110 +797,77 @@ Return ONLY valid raw JSON with no markdown wrapping.`;
 
       let responseText: string | null = null;
       let lastError: any = null;
+      const cleanKey = apiKey.trim();
 
-      // Tier 1: Try SDK with dynamic model list
+      // Step 1: Discover available models for this key via REST
+      const candidateModels: string[] = ['gemini-flash-latest', 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-flash-latest'];
+
       try {
-        const listResult = await ai.models.list();
-        const availableModels: string[] = [];
-        if (Array.isArray(listResult)) {
-          for (const m of listResult) {
-            if (m.name && (m.supportedGenerationMethods?.includes('generateContent') || !m.supportedGenerationMethods)) {
-              availableModels.push(m.name.replace(/^models\//, ''));
-            }
-          }
-        } else if (listResult && Array.isArray((listResult as any).models)) {
-          for (const m of (listResult as any).models) {
-            if (m.name && (m.supportedGenerationMethods?.includes('generateContent') || !m.supportedGenerationMethods)) {
-              availableModels.push(m.name.replace(/^models\//, ''));
+        const listUrl = `https://generativelanguage.googleapis.com/v1beta/models`;
+        const listRes = await fetch(listUrl, {
+          headers: { 'x-goog-api-key': cleanKey }
+        });
+
+        if (listRes.ok) {
+          const listData: any = await listRes.json();
+          if (listData?.models && Array.isArray(listData.models)) {
+            const dynamicList = listData.models
+              .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent') || !m.supportedGenerationMethods)
+              .map((m: any) => m.name.replace(/^models\//, ''))
+              .filter((name: string) => name.includes('gemini') || name.includes('flash'));
+
+            if (dynamicList.length > 0) {
+              candidateModels.unshift(...dynamicList);
             }
           }
         }
+      } catch (err: any) {
+        console.warn("Could not list models dynamically:", err?.message);
+      }
 
-        const preferredModels = availableModels.filter(m => m.includes('flash') || m.includes('gemini'));
-        const modelsToTry = preferredModels.length > 0 ? preferredModels : ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-pro'];
+      // Deduplicate candidate list
+      const uniqueModels = Array.from(new Set(candidateModels));
 
-        for (const modelName of modelsToTry) {
+      // Step 2: Try each model with v1beta and v1
+      for (const modelName of uniqueModels) {
+        for (const apiVer of ['v1beta', 'v1']) {
           try {
-            const resp = await ai.models.generateContent({
-              model: modelName,
-              contents: prompt,
-              config: {
-                responseMimeType: "application/json",
+            const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${modelName}:generateContent`;
+            const restRes = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': cleanKey,
               },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: {
+                  responseMimeType: "application/json"
+                }
+              })
             });
-            if (resp && resp.text) {
-              responseText = resp.text;
-              break;
+
+            if (restRes.ok) {
+              const data: any = await restRes.json();
+              const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (text) {
+                responseText = text;
+                break;
+              }
+            } else {
+              const errData: any = await restRes.json().catch(() => ({}));
+              lastError = new Error(errData?.error?.message || `HTTP ${restRes.status}: ${restRes.statusText}`);
             }
           } catch (err: any) {
             lastError = err;
           }
         }
-      } catch (err: any) {
-        lastError = err;
-      }
 
-      // Tier 2: Direct REST API Fallback
-      if (!responseText) {
-        const fallbackModels = [
-          'gemini-2.0-flash',
-          'gemini-2.5-flash',
-          'gemini-1.5-flash',
-          'gemini-1.5-pro',
-          'gemini-2.0-flash-exp',
-          'gemini-pro'
-        ];
-
-        const cleanKey = apiKey.trim();
-
-        for (const modelName of fallbackModels) {
-          // Try v1beta and v1 endpoints
-          for (const apiVersion of ['v1beta', 'v1']) {
-            try {
-              const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent`;
-              const headers: Record<string, string> = {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': cleanKey,
-              };
-
-              // Also support Authorization header if Bearer token
-              if (cleanKey.startsWith('ya29.')) {
-                headers['Authorization'] = `Bearer ${cleanKey}`;
-              }
-
-              const restRes = await fetch(url, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: prompt }] }],
-                  generationConfig: {
-                    responseMimeType: "application/json"
-                  }
-                })
-              });
-
-              if (restRes.ok) {
-                const data: any = await restRes.json();
-                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) {
-                  responseText = text;
-                  break;
-                }
-              } else {
-                const errData: any = await restRes.json().catch(() => ({}));
-                lastError = new Error(errData?.error?.message || `HTTP ${restRes.status}: ${restRes.statusText}`);
-              }
-            } catch (err: any) {
-              lastError = err;
-            }
-          }
-
-          if (responseText) break;
-        }
+        if (responseText) break;
       }
 
       if (!responseText) {
-        throw new Error(lastError?.message || "Failed to reach Gemini API. Please verify your Gemini API key in Settings.");
+        throw new Error(lastError?.message || "Failed to reach Gemini API. Please make sure Generative Language API is enabled on your project in Google AI Studio.");
       }
 
       // Clean markdown code blocks if present
