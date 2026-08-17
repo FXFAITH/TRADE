@@ -842,53 +842,65 @@ Return ONLY valid raw JSON with no markdown wrapping.`;
 
       // Tier 2: Direct REST API Fallback
       if (!responseText) {
-        const fallbackModels = ['gemini-2.0-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash-exp', 'gemini-1.5-pro-latest', 'gemini-pro'];
+        const fallbackModels = [
+          'gemini-2.0-flash',
+          'gemini-2.5-flash',
+          'gemini-1.5-flash',
+          'gemini-1.5-pro',
+          'gemini-2.0-flash-exp',
+          'gemini-pro'
+        ];
+
+        const cleanKey = apiKey.trim();
+
         for (const modelName of fallbackModels) {
-          try {
-            const cleanKey = apiKey.trim();
-            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-            let url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
-            
-            if (cleanKey.startsWith('AQ.') || cleanKey.startsWith('ya29.')) {
-              headers['Authorization'] = `Bearer ${cleanKey}`;
-            } else {
-              url += `?key=${cleanKey}`;
-            }
+          // Try v1beta and v1 endpoints
+          for (const apiVersion of ['v1beta', 'v1']) {
+            try {
+              const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent`;
+              const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': cleanKey,
+              };
 
-            const restRes = await fetch(url, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                  responseMimeType: "application/json"
-                }
-              })
-            });
-
-            if (restRes.ok) {
-              const data: any = await restRes.json();
-              const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (text) {
-                responseText = text;
-                break;
+              // Also support Authorization header if Bearer token
+              if (cleanKey.startsWith('ya29.')) {
+                headers['Authorization'] = `Bearer ${cleanKey}`;
               }
-            } else {
-              const errData: any = await restRes.json().catch(() => ({}));
-              lastError = new Error(errData?.error?.message || `HTTP ${restRes.status}: ${restRes.statusText}`);
+
+              const restRes = await fetch(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }] }],
+                  generationConfig: {
+                    responseMimeType: "application/json"
+                  }
+                })
+              });
+
+              if (restRes.ok) {
+                const data: any = await restRes.json();
+                const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                  responseText = text;
+                  break;
+                }
+              } else {
+                const errData: any = await restRes.json().catch(() => ({}));
+                lastError = new Error(errData?.error?.message || `HTTP ${restRes.status}: ${restRes.statusText}`);
+              }
+            } catch (err: any) {
+              lastError = err;
             }
-          } catch (err: any) {
-            lastError = err;
           }
+
+          if (responseText) break;
         }
       }
 
       if (!responseText) {
-        const isKeyMalformed = !apiKey.trim().startsWith('AIzaSy');
-        const hint = isKeyMalformed
-          ? " (Note: A standard Google Gemini API key starts with 'AIzaSy...'. Please copy your full API key from https://aistudio.google.com/app/apikey)."
-          : "";
-        throw new Error((lastError?.message || "Failed to reach Gemini API.") + hint);
+        throw new Error(lastError?.message || "Failed to reach Gemini API. Please verify your Gemini API key in Settings.");
       }
 
       // Clean markdown code blocks if present
