@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Shield,
   Lock,
@@ -11,13 +11,15 @@ import {
   ExternalLink,
   RefreshCw,
   AlertCircle,
-  HelpCircle,
+  Key,
+  ShieldCheck,
 } from 'lucide-react';
 import { AuthUser, NotionConfig } from '../types';
 import {
   createGoogleUser,
   createDemoUser,
   createNotionUser,
+  parseGoogleJwt,
   saveStoredUser,
 } from '../lib/auth';
 import {
@@ -30,11 +32,18 @@ interface LoginPanelProps {
   onLogin: (user: AuthUser) => void;
 }
 
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+
 export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
   const [authMethod, setAuthMethod] = useState<'google' | 'notion'>('google');
   
   // Google sign in state
   const [googleEmail, setGoogleEmail] = useState('');
+  const [googlePassword, setGooglePassword] = useState('');
   const [googleName, setGoogleName] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
@@ -46,21 +55,85 @@ export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
   const [notionError, setNotionError] = useState<string | null>(null);
   const [notionSuccess, setNotionSuccess] = useState<string | null>(null);
 
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+
+  // Initialize Google Identity Services (GIS) button if available
   useEffect(() => {
     const existing = getStoredNotionConfig();
     if (existing.apiKey) setNotionApiKey(existing.apiKey);
     if (existing.databaseId) setNotionDatabaseId(existing.databaseId);
-  }, []);
 
-  const handleGoogleSubmit = (e: React.FormEvent) => {
+    const initGoogleGsi = () => {
+      const googleClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
+      if (window.google?.accounts?.id && googleClientId && googleBtnRef.current) {
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: (response: any) => {
+            if (response.credential) {
+              const payload = parseGoogleJwt(response.credential);
+              if (payload?.email) {
+                const user = createGoogleUser({
+                  sub: payload.sub,
+                  email: payload.email,
+                  name: payload.name,
+                  picture: payload.picture,
+                });
+                saveStoredUser(user);
+                onLogin(user);
+              }
+            }
+          },
+        });
+
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'filled_blue',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'pill',
+          width: 320,
+        });
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      initGoogleGsi();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          initGoogleGsi();
+          clearInterval(interval);
+        }
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, [onLogin]);
+
+  const handleEmailPasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!googleEmail.trim()) {
-      setGoogleError('Please enter your Google account email address.');
+      setGoogleError('Please enter your email address.');
       return;
     }
     if (!googleEmail.includes('@')) {
-      setGoogleError('Please enter a valid email format (e.g. yourname@gmail.com).');
+      setGoogleError('Please enter a valid email format (e.g. trader@gmail.com).');
       return;
+    }
+    if (googlePassword.length < 4) {
+      setGoogleError('Security PIN / Password must be at least 4 characters to protect your account.');
+      return;
+    }
+
+    // Verify local PIN security if previously set for this email
+    const savedPinKey = `sentinel_trader_pin_${googleEmail.trim().toLowerCase()}`;
+    const existingPin = localStorage.getItem(savedPinKey);
+    if (existingPin && existingPin !== googlePassword) {
+      setGoogleError('Incorrect Password/PIN for this trader email. Please check your credentials.');
+      return;
+    }
+
+    // Save PIN to protect this account from unauthorized entry on this device
+    if (!existingPin) {
+      localStorage.setItem(savedPinKey, googlePassword);
     }
 
     setIsGoogleLoading(true);
@@ -68,7 +141,7 @@ export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
 
     setTimeout(() => {
       const user = createGoogleUser({
-        email: googleEmail.trim(),
+        email: googleEmail.trim().toLowerCase(),
         name: googleName.trim() || undefined,
       });
       saveStoredUser(user);
@@ -159,26 +232,8 @@ export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              {/* Google G Icon */}
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                <path
-                  fill="currentColor"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="currentColor"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="currentColor"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="currentColor"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
-              </svg>
-              Google Auth
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Secure Trader Auth
             </button>
 
             <button
@@ -195,15 +250,18 @@ export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
             </button>
           </div>
 
-          {/* GOOGLE AUTH VIEW */}
+          {/* SECURE TRADER AUTH VIEW */}
           {authMethod === 'google' && (
             <div className="space-y-4">
               <div className="text-center space-y-1">
-                <h2 className="text-sm font-bold text-white">Sign in with Google</h2>
+                <h2 className="text-sm font-bold text-white">Trader Secure Sign-In</h2>
                 <p className="text-[11px] text-slate-400">
-                  Authenticate securely to access your private journal and Notion sync
+                  Password protected session &bull; Your trades are strictly isolated to your email
                 </p>
               </div>
+
+              {/* Official Google GSI Button Container */}
+              <div ref={googleBtnRef} className="flex justify-center empty:hidden min-h-0" />
 
               {googleError && (
                 <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-xl text-rose-300 text-xs flex items-center gap-2">
@@ -212,10 +270,10 @@ export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
                 </div>
               )}
 
-              <form onSubmit={handleGoogleSubmit} className="space-y-3">
+              <form onSubmit={handleEmailPasswordSubmit} className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Google Email Address
+                    Trader Email Address
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -231,12 +289,30 @@ export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
                 </div>
 
                 <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                    <span>Trader Password / PIN</span>
+                    <span className="text-[10px] text-slate-500 font-mono">Locks your journal</span>
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="password"
+                      required
+                      placeholder="Enter 4+ digit PIN or password"
+                      value={googlePassword}
+                      onChange={(e) => setGooglePassword(e.target.value)}
+                      className="w-full pl-9 pr-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Trader Name / Alias <span className="text-slate-500 font-normal">(Optional)</span>
+                    Trader Alias <span className="text-slate-500 font-normal">(Optional)</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Pro Trader"
+                    placeholder="e.g. Master Trader"
                     value={googleName}
                     onChange={(e) => setGoogleName(e.target.value)}
                     className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 text-xs"
@@ -252,7 +328,8 @@ export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
                     <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : (
                     <>
-                      <span>Continue with Google</span>
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Unlock &amp; Enter Journal</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
@@ -358,19 +435,19 @@ export const LoginPanel: React.FC<LoginPanelProps> = ({ onLogin }) => {
 
         </div>
 
-        {/* Feature Highlights */}
+        {/* Security & Feature Highlights */}
         <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-slate-500">
           <div className="p-2 rounded-lg bg-slate-900/40 border border-slate-800/40">
-            <span className="font-semibold text-slate-300 block">Notion 2-Way</span>
-            Direct Database Sync
+            <span className="font-semibold text-slate-300 block">Password / PIN</span>
+            Account Protected
           </div>
           <div className="p-2 rounded-lg bg-slate-900/40 border border-slate-800/40">
-            <span className="font-semibold text-slate-300 block">Google Auth</span>
-            Private Isolated Session
+            <span className="font-semibold text-slate-300 block">Strict Isolation</span>
+            Per-Email Database Filter
           </div>
           <div className="p-2 rounded-lg bg-slate-900/40 border border-slate-800/40">
-            <span className="font-semibold text-slate-300 block">AI Auditor</span>
-            Gemini Flash Review
+            <span className="font-semibold text-slate-300 block">Notion Cloud</span>
+            Direct 2-Way Sync
           </div>
         </div>
 
