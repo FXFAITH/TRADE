@@ -8,9 +8,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: GEMINI_API_KEY
-        sync: false
       - key: NOTION_API_KEY
-        sync: false
+        value: ntn_Q38234662644sLexkBRmI46birmVGxUHESVj8PrVosR0Oi
       - key: NOTION_DATABASE_ID
+        value: 3bf0e3e57718801182ece24131bad598
+      - key: GEMINI_API_KEY
         sync: false
