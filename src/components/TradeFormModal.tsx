@@ -82,6 +82,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
   const [session, setSession] = useState<TradingSession>(initialTrade?.session || 'Asian Session');
   const [levelTimeframe, setLevelTimeframe] = useState<string>(initialTrade?.levelTimeframe || '1D');
   const [confirmationTimeframe, setConfirmationTimeframe] = useState<string>(initialTrade?.confirmationTimeframe || '15M');
+  const [levelSize, setLevelSize] = useState<string>(initialTrade?.levelSize !== undefined ? initialTrade.levelSize.toString() : '');
   const [emotionalState, setEmotionalState] = useState<EmotionalState>(initialTrade?.emotionalState || 'Disciplined');
   const [date, setDate] = useState<string>(initialTrade?.date || new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState<string>(initialTrade?.time || new Date().toTimeString().slice(0, 5));
@@ -130,6 +131,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setSession(initialTrade.session || 'Asian Session');
       setLevelTimeframe(initialTrade.levelTimeframe || '1D');
       setConfirmationTimeframe(initialTrade.confirmationTimeframe || '15M');
+      setLevelSize(initialTrade.levelSize !== undefined ? initialTrade.levelSize.toString() : '');
       setEmotionalState(initialTrade.emotionalState || 'Disciplined');
       setDate(initialTrade.date || new Date().toISOString().split('T')[0]);
       setTime(initialTrade.time || new Date().toTimeString().slice(0, 5));
@@ -153,6 +155,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       setSession('Asian Session');
       setLevelTimeframe('1D');
       setConfirmationTimeframe('15M');
+      setLevelSize('');
       setEmotionalState('Disciplined');
       setDate(new Date().toISOString().split('T')[0]);
       setTime(new Date().toTimeString().slice(0, 5));
@@ -221,6 +224,7 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
       session,
       levelTimeframe,
       confirmationTimeframe,
+      levelSize: levelSize !== '' && !isNaN(parseFloat(levelSize)) ? parseFloat(levelSize) : undefined,
       emotionalState,
       notes,
       rating,
@@ -676,6 +680,21 @@ export const TradeFormModal: React.FC<TradeFormModalProps> = ({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Levels Size */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Levels Size <span className="text-slate-400 font-normal">(Number / Pips)</span>
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={levelSize}
+                  onChange={(e) => setLevelSize(e.target.value)}
+                  placeholder="e.g. 25"
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-slate-800 font-mono focus:outline-none focus:border-blue-500 font-bold"
+                />
               </div>
 
               {/* Execution Rating */}

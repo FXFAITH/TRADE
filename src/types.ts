@@ -54,6 +54,7 @@ export interface Trade {
   strategyType: StrategyType;
   levelTimeframe?: string; // Key higher timeframe level e.g. 1D, 4H, 1H
   confirmationTimeframe?: string; // Execution/confirmation timeframe e.g. 15M, 5M, 1M
+  levelSize?: number; // Levels size (number / pips / points)
   emotionalState: EmotionalState;
   status: TradeStatus;
   

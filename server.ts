@@ -152,6 +152,7 @@ function parseNotionPageToTrade(page: any): any {
   const actualRiskReward = getNumber(["realized r:r", "actual risk reward", "actual rr"], undefined as any);
   const pnlAmount = getNumber(["pnl ($)", "pnl", "p&l", "net pnl", "profit", "amount"], undefined as any);
   const pnlPips = getNumber(["pnl (pips)", "pnl pips", "pips"], undefined as any);
+  const levelSize = getNumber(["levels size", "level size", "zone size"], undefined as any);
   const rating = getNumber(["execution rating", "rating"], 5);
   const date = getDate(["trade date", "date", "created"]);
   const time = getText(["trade time", "time"]);
@@ -189,6 +190,7 @@ function parseNotionPageToTrade(page: any): any {
     session,
     levelTimeframe,
     confirmationTimeframe,
+    levelSize: levelSize !== undefined ? levelSize : undefined,
     emotionalState: emotion,
     entryPrice,
     exitPrice: exitPrice || undefined,
@@ -298,6 +300,8 @@ function buildNotionPageProperties(trade: any, databaseSchema?: any): Record<str
   setNum("Realized R:R", trade.actualRiskReward);
   setNum("Risk (Pips)", trade.riskPips);
   setNum("Lot Size", trade.positionSize);
+  setNum("Levels Size", trade.levelSize);
+  setNum("Level Size", trade.levelSize);
   setNum("Execution Rating", trade.rating);
 
   // 11. Risk-Free / Breakeven Checkbox

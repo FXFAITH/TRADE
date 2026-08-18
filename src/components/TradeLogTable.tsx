@@ -501,13 +501,18 @@ export const TradeLogTable: React.FC<TradeLogTableProps> = ({
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-1 text-[10px]">
+                          <div className="flex flex-wrap items-center gap-1 text-[10px]">
                             <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-mono font-bold border border-slate-200" title="Level TF → Confirmation TF">
                               <Clock className="w-2.5 h-2.5 text-blue-600" />
                               <span>{trade.levelTimeframe || '1D'}</span>
                               <span className="text-slate-400">→</span>
                               <span className="text-emerald-700">{trade.confirmationTimeframe || '15M'}</span>
                             </span>
+                            {trade.levelSize !== undefined && (
+                              <span className="bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded font-mono font-bold" title="Levels Size">
+                                Size: {trade.levelSize}
+                              </span>
+                            )}
                           </div>
                           <div>{getEmotionBadge(trade.emotionalState)}</div>
                         </td>
@@ -621,6 +626,9 @@ export const TradeLogTable: React.FC<TradeLogTableProps> = ({
                                   <div>Trading Session: <span className="text-blue-700 font-bold">{trade.session || 'Asian Session'}</span></div>
                                   <div>Level TF (HTF): <span className="text-slate-900 font-mono font-bold">{trade.levelTimeframe || '1D'}</span></div>
                                   <div>Confirm TF (LTF): <span className="text-slate-900 font-mono font-bold">{trade.confirmationTimeframe || '15M'}</span></div>
+                                  {trade.levelSize !== undefined && (
+                                    <div>Levels Size: <span className="text-purple-700 font-mono font-bold">{trade.levelSize}</span></div>
+                                  )}
                                   <div>Risk in Pips: <span className="text-slate-900 font-mono font-bold">{trade.riskPips}</span></div>
                                   <div>Position Size: <span className="text-slate-900 font-mono">{trade.positionSize || 1.0}</span></div>
                                   <div>Planned R:R: <span className="text-blue-700 font-mono font-bold">1:{trade.calculatedRiskReward}</span></div>
